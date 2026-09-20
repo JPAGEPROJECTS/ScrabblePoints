@@ -1,0 +1,1055 @@
+<title>Marcador Scrabble</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #f6efdd;
+    --surface: #ffffff;
+    --surface-2: #fbf6ea;
+    --border: #e1d3ac;
+    --ink: #2b2420;
+    --ink-soft: #6b5f4e;
+    --accent: #2f7a4f;
+    --accent-strong: #1f5c3a;
+    --accent-ink: #ffffff;
+    --gold: #b5871a;
+    --danger: #b23a2e;
+    --danger-strong: #8f2c22;
+    --tile-bg: #f0dfb0;
+    --tile-ink: #3b2e1a;
+    --shadow: 0 1px 2px rgba(43, 36, 32, 0.06), 0 4px 12px rgba(43, 36, 32, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171310;
+      --surface: #221c16;
+      --surface-2: #2a231c;
+      --border: #3b3226;
+      --ink: #f3ecdc;
+      --ink-soft: #c9bba0;
+      --accent: #4fae78;
+      --accent-strong: #6cc491;
+      --accent-ink: #0d1410;
+      --gold: #e0ba4e;
+      --danger: #e0685a;
+      --danger-strong: #ef8479;
+      --tile-bg: #3b3226;
+      --tile-ink: #f3ecdc;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #171310;
+    --surface: #221c16;
+    --surface-2: #2a231c;
+    --border: #3b3226;
+    --ink: #f3ecdc;
+    --ink-soft: #c9bba0;
+    --accent: #4fae78;
+    --accent-strong: #6cc491;
+    --accent-ink: #0d1410;
+    --gold: #e0ba4e;
+    --danger: #e0685a;
+    --danger-strong: #ef8479;
+    --tile-bg: #3b3226;
+    --tile-ink: #f3ecdc;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Sin esta regla, un selector de clase con la misma especificidad (p. ej.
+     .modal-backdrop { display: flex }) puede ganarle al hidden nativo del
+     navegador y dejar el modal visible aunque tenga el atributo hidden. */
+  [hidden] { display: none !important; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100%;
+    padding: 0 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  header.top {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 20;
+    background: var(--bg);
+    padding-block: 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand .mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: var(--tile-bg);
+    color: var(--tile-ink);
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  .tagline {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 2px 0 0;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    transition: transform 0.08s ease, filter 0.15s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:disabled { background: var(--border); color: var(--ink-soft); cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface-2); }
+
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { filter: brightness(1.08); }
+
+  .btn-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink-soft);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 15px;
+  }
+  .btn-icon:hover { color: var(--ink); }
+  .btn-icon.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .card-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+
+  /* Players */
+  .players-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .player-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 6px 5px 5px;
+  }
+
+  .tile-avatar {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--tile-bg);
+    color: var(--tile-ink);
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+  .tile-avatar .val {
+    position: absolute;
+    bottom: 1px;
+    right: 2px;
+    font-family: 'Inter', sans-serif;
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .player-chip .name {
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-chip .remove {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .player-chip .remove:hover { background: var(--danger); color: #fff; }
+
+  .add-player-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  input[type="text"], input[type="number"] {
+    font-family: inherit;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--ink);
+    width: 100%;
+  }
+  input:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 8px 0 0;
+  }
+
+  /* Round form */
+  .round-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .round-row:last-of-type { border-bottom: none; }
+
+  .round-row .name {
+    flex: 1;
+    font-weight: 600;
+    font-size: 14px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .round-row input[type="number"] {
+    width: 76px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bingo-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink-soft);
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .bingo-toggle input { accent-color: var(--gold); width: 14px; height: 14px; }
+  .bingo-toggle.active {
+    background: color-mix(in srgb, var(--gold) 18%, transparent);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .round-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* Scoreboard */
+  .score-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .score-row.leader {
+    border-color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 10%, var(--surface-2));
+  }
+
+  .score-row .rank {
+    width: 20px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+
+  .score-row .info { flex: 1; min-width: 0; }
+  .score-row .info .name {
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .score-row .info .rounds-played {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .score-row .total {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 20px 8px;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  /* History */
+  .history-toggle {
+    width: 100%;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .history-toggle .chev { transition: transform 0.15s ease; color: var(--ink-soft); }
+  .history-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  .history-wrap { overflow-x: auto; margin-top: 12px; }
+
+  table.history {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 100%;
+  }
+  table.history th, table.history td {
+    padding: 8px 10px;
+    font-size: 13px;
+    text-align: center;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  table.history th {
+    color: var(--ink-soft);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table.history td:first-child, table.history th:first-child { text-align: left; color: var(--ink-soft); }
+  table.history .cell-score { font-variant-numeric: tabular-nums; font-weight: 600; }
+  table.history .bingo-mark { color: var(--gold); font-size: 10px; display: block; font-weight: 700; }
+  table.history .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+  .edit-round-row input[type="number"] { width: 64px; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 16, 12, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  @media (min-width: 480px) {
+    .modal-backdrop { align-items: center; }
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: var(--shadow);
+  }
+  .modal h3 {
+    font-family: 'Fraunces', serif;
+    margin: 0 0 8px;
+    font-size: 17px;
+  }
+  .modal p {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+    line-height: 1.5;
+  }
+  .modal .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  footer.foot {
+    text-align: center;
+    font-size: 11px;
+    color: var(--ink-soft);
+    padding: 8px 0 env(safe-area-inset-bottom, 0px);
+  }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">S</div>
+      <div>
+        <h1>Marcador Scrabble</h1>
+        <p class="tagline" id="roundTagline">Ronda 1</p>
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
+  </header>
+
+  <section class="card" id="playersCard">
+    <div class="card-head">
+      <h2>🀫 Jugadores</h2>
+      <span class="badge" id="playerCountBadge">0</span>
+    </div>
+    <div class="players-list" id="playersList"></div>
+    <form class="add-player-row" id="addPlayerForm">
+      <input type="text" id="newPlayerName" placeholder="Nombre del jugador" maxlength="20" autocomplete="off" />
+      <button type="submit" class="btn btn-primary">Añadir</button>
+    </form>
+    <p class="hint" id="playersHint">Añade al menos 2 jugadores para empezar a puntuar.</p>
+  </section>
+
+  <section class="card" id="roundCard">
+    <div class="card-head">
+      <h2>✏️ Puntuación de la ronda</h2>
+      <span class="badge" id="roundBadge">Ronda 1</span>
+    </div>
+    <div id="roundForm"></div>
+    <div class="round-actions">
+      <button class="btn btn-primary" id="saveRoundBtn">Guardar ronda</button>
+    </div>
+  </section>
+
+  <section class="card" id="scoreboardCard">
+    <div class="card-head">
+      <h2>🏆 Marcador</h2>
+      <span class="badge" id="totalRoundsBadge">0 rondas</span>
+    </div>
+    <div class="score-list" id="scoreList"></div>
+  </section>
+
+  <section class="card" id="historyCard" hidden>
+    <button class="history-toggle" id="historyToggle" aria-expanded="false">
+      <span>📜 Historial de rondas</span>
+      <span class="chev">▾</span>
+    </button>
+    <div class="history-wrap" id="historyWrap" hidden>
+      <table class="history" id="historyTable"></table>
+    </div>
+  </section>
+
+  <footer class="foot">Tus puntos se guardan automáticamente en este dispositivo.</footer>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalMessage">
+    <h3 id="modalTitle">Título</h3>
+    <p id="modalMessage">Mensaje</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">Cancelar</button>
+      <button class="btn btn-danger" id="modalConfirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'scrabble-scorer-state-v1';
+
+  var LETTER_VALUES = {
+    A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,
+    P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10
+  };
+
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
+  function defaultState() {
+    return { players: [], rounds: [] };
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.players) || !Array.isArray(parsed.rounds)) {
+        return defaultState();
+      }
+      return parsed;
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) { /* storage unavailable, continue silently */ }
+  }
+
+  var state = loadState();
+  var editingRoundId = null;
+
+  // ---------- helpers ----------
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function tileValueFor(name) {
+    var letter = (name || '?').trim().charAt(0).toUpperCase();
+    return LETTER_VALUES[letter] || 1;
+  }
+
+  function tileAvatarHtml(name) {
+    var letter = (name || '?').trim().charAt(0).toUpperCase() || '?';
+    var val = tileValueFor(name);
+    return '<div class="tile-avatar">' + escapeHtml(letter) +
+      '<span class="val">' + val + '</span></div>';
+  }
+
+  function roundEntryTotal(entry) {
+    if (!entry) return 0;
+    var pts = Number(entry.points) || 0;
+    return pts + (entry.bingo ? 50 : 0);
+  }
+
+  function totalsByPlayer() {
+    var totals = {};
+    state.players.forEach(function (p) { totals[p.id] = 0; });
+    state.rounds.forEach(function (round) {
+      Object.keys(round.entries).forEach(function (pid) {
+        if (totals[pid] === undefined) return;
+        totals[pid] += roundEntryTotal(round.entries[pid]);
+      });
+    });
+    return totals;
+  }
+
+  function roundsPlayedFor(playerId) {
+    return state.rounds.filter(function (r) {
+      return r.entries[playerId] !== undefined;
+    }).length;
+  }
+
+  // ---------- modal ----------
+
+  var modalBackdrop = document.getElementById('modalBackdrop');
+  var modalTitle = document.getElementById('modalTitle');
+  var modalMessage = document.getElementById('modalMessage');
+  var modalConfirm = document.getElementById('modalConfirm');
+  var modalCancel = document.getElementById('modalCancel');
+  var pendingConfirmAction = null;
+  var lastFocusedElement = null;
+
+  function openConfirm(title, message, onConfirm) {
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    pendingConfirmAction = onConfirm;
+    lastFocusedElement = document.activeElement;
+    modalBackdrop.hidden = false;
+    modalCancel.focus();
+  }
+
+  function closeConfirm() {
+    modalBackdrop.hidden = true;
+    pendingConfirmAction = null;
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+    }
+    lastFocusedElement = null;
+  }
+
+  modalCancel.addEventListener('click', closeConfirm);
+  modalBackdrop.addEventListener('click', function (e) {
+    if (e.target === modalBackdrop) closeConfirm();
+  });
+  modalConfirm.addEventListener('click', function () {
+    var action = pendingConfirmAction;
+    closeConfirm();
+    if (action) action();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modalBackdrop.hidden) closeConfirm();
+  });
+
+  // ---------- players ----------
+
+  var playersList = document.getElementById('playersList');
+  var playerCountBadge = document.getElementById('playerCountBadge');
+  var playersHint = document.getElementById('playersHint');
+  var addPlayerForm = document.getElementById('addPlayerForm');
+  var newPlayerName = document.getElementById('newPlayerName');
+
+  function addPlayer(name) {
+    var trimmed = name.trim();
+    if (!trimmed) return;
+    state.players.push({ id: uid(), name: trimmed.slice(0, 20) });
+    saveState();
+    renderAll();
+  }
+
+  function removePlayer(playerId) {
+    var player = state.players.find(function (p) { return p.id === playerId; });
+    if (!player) return;
+    openConfirm(
+      'Quitar a ' + player.name,
+      'Se eliminarán también sus puntos registrados en todas las rondas. Esta acción no se puede deshacer.',
+      function () {
+        state.players = state.players.filter(function (p) { return p.id !== playerId; });
+        state.rounds.forEach(function (r) { delete r.entries[playerId]; });
+        state.rounds = state.rounds.filter(function (r) { return Object.keys(r.entries).length > 0; });
+        saveState();
+        renderAll();
+      }
+    );
+  }
+
+  addPlayerForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    addPlayer(newPlayerName.value);
+    newPlayerName.value = '';
+    newPlayerName.focus();
+  });
+
+  function renderPlayers() {
+    playerCountBadge.textContent = state.players.length;
+    playersHint.hidden = state.players.length >= 2;
+
+    if (state.players.length === 0) {
+      playersList.innerHTML = '<p class="hint" style="margin:0;">Todavía no hay jugadores.</p>';
+      return;
+    }
+
+    playersList.innerHTML = state.players.map(function (p) {
+      return '<div class="player-chip" data-player-id="' + p.id + '">' +
+        tileAvatarHtml(p.name) +
+        '<span class="name">' + escapeHtml(p.name) + '</span>' +
+        '<button type="button" class="remove" data-remove="' + p.id + '" aria-label="Quitar jugador">✕</button>' +
+        '</div>';
+    }).join('');
+
+    playersList.querySelectorAll('[data-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        removePlayer(btn.getAttribute('data-remove'));
+      });
+    });
+  }
+
+  // ---------- round form ----------
+
+  var roundForm = document.getElementById('roundForm');
+  var roundBadge = document.getElementById('roundBadge');
+  var roundTagline = document.getElementById('roundTagline');
+  var saveRoundBtn = document.getElementById('saveRoundBtn');
+  var roundCard = document.getElementById('roundCard');
+
+  function currentRoundNumber() {
+    return state.rounds.length + 1;
+  }
+
+  function renderRoundForm() {
+    var num = currentRoundNumber();
+    roundBadge.textContent = 'Ronda ' + num;
+    roundTagline.textContent = 'Ronda ' + num;
+
+    var enoughPlayers = state.players.length >= 2;
+    roundCard.hidden = !enoughPlayers;
+    if (!enoughPlayers) return;
+
+    roundForm.innerHTML = state.players.map(function (p) {
+      return '<div class="round-row" data-row-player="' + p.id + '">' +
+        tileAvatarHtml(p.name) +
+        '<span class="name">' + escapeHtml(p.name) + '</span>' +
+        '<label class="bingo-toggle" data-bingo-label="' + p.id + '">' +
+          '<input type="checkbox" data-bingo="' + p.id + '" /> Bingo +50' +
+        '</label>' +
+        '<input type="number" inputmode="numeric" min="0" step="1" placeholder="0" data-score="' + p.id + '" id="score-' + p.id + '" />' +
+        '</div>';
+    }).join('');
+
+    state.players.forEach(function (p) {
+      var checkbox = roundForm.querySelector('[data-bingo="' + p.id + '"]');
+      var label = roundForm.querySelector('[data-bingo-label="' + p.id + '"]');
+      checkbox.addEventListener('change', function () {
+        label.classList.toggle('active', checkbox.checked);
+      });
+    });
+  }
+
+  function collectRoundEntries() {
+    var entries = {};
+    var anyValue = false;
+    state.players.forEach(function (p) {
+      var scoreInput = roundForm.querySelector('[data-score="' + p.id + '"]');
+      var bingoInput = roundForm.querySelector('[data-bingo="' + p.id + '"]');
+      var points = scoreInput ? Number(scoreInput.value) || 0 : 0;
+      var bingo = bingoInput ? bingoInput.checked : false;
+      if (points !== 0 || bingo) anyValue = true;
+      entries[p.id] = { points: points, bingo: bingo };
+    });
+    return { entries: entries, anyValue: anyValue };
+  }
+
+  saveRoundBtn.addEventListener('click', function () {
+    if (state.players.length < 2) return;
+    var collected = collectRoundEntries();
+    if (!collected.anyValue) {
+      openConfirm(
+        'Ronda vacía',
+        'No has introducido ninguna puntuación. ¿Quieres guardarla igualmente con 0 puntos para todos?',
+        function () {
+          state.rounds.push({ id: uid(), entries: collected.entries });
+          saveState();
+          renderAll();
+        }
+      );
+      return;
+    }
+    state.rounds.push({ id: uid(), entries: collected.entries });
+    saveState();
+    renderAll();
+  });
+
+  // ---------- scoreboard ----------
+
+  var scoreList = document.getElementById('scoreList');
+  var totalRoundsBadge = document.getElementById('totalRoundsBadge');
+
+  function renderScoreboard() {
+    totalRoundsBadge.textContent = state.rounds.length + (state.rounds.length === 1 ? ' ronda' : ' rondas');
+
+    if (state.players.length === 0) {
+      scoreList.innerHTML = '<p class="empty-state">Añade jugadores para ver el marcador.</p>';
+      return;
+    }
+
+    var totals = totalsByPlayer();
+    var maxTotal = Math.max.apply(null, state.players.map(function (p) { return totals[p.id]; }).concat([0]));
+    var ranked = state.players.slice().sort(function (a, b) { return totals[b.id] - totals[a.id]; });
+
+    scoreList.innerHTML = ranked.map(function (p, idx) {
+      var total = totals[p.id];
+      var isLeader = state.rounds.length > 0 && maxTotal > 0 && total === maxTotal;
+      var played = roundsPlayedFor(p.id);
+      return '<div class="score-row' + (isLeader ? ' leader' : '') + '">' +
+        '<span class="rank">' + (idx + 1) + '</span>' +
+        tileAvatarHtml(p.name) +
+        '<div class="info">' +
+          '<div class="name">' + escapeHtml(p.name) + (isLeader ? ' 👑' : '') + '</div>' +
+          '<div class="rounds-played">' + played + (played === 1 ? ' ronda jugada' : ' rondas jugadas') + '</div>' +
+        '</div>' +
+        '<div class="total">' + total + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // ---------- history ----------
+
+  var historyCard = document.getElementById('historyCard');
+  var historyToggle = document.getElementById('historyToggle');
+  var historyWrap = document.getElementById('historyWrap');
+  var historyTable = document.getElementById('historyTable');
+
+  historyToggle.addEventListener('click', function () {
+    var expanded = historyToggle.getAttribute('aria-expanded') === 'true';
+    historyToggle.setAttribute('aria-expanded', String(!expanded));
+    historyWrap.hidden = expanded;
+  });
+
+  function deleteRound(roundId) {
+    openConfirm(
+      'Eliminar ronda',
+      'Se eliminará esta ronda del historial y se recalcularán los totales.',
+      function () {
+        state.rounds = state.rounds.filter(function (r) { return r.id !== roundId; });
+        if (editingRoundId === roundId) editingRoundId = null;
+        saveState();
+        renderAll();
+      }
+    );
+  }
+
+  function startEditRound(roundId) {
+    editingRoundId = roundId;
+    renderHistory();
+  }
+
+  function cancelEditRound() {
+    editingRoundId = null;
+    renderHistory();
+  }
+
+  function saveEditRound(roundId) {
+    var round = state.rounds.find(function (r) { return r.id === roundId; });
+    if (!round) return;
+    var newEntries = {};
+    state.players.forEach(function (p) {
+      if (round.entries[p.id] === undefined) return;
+      var scoreInput = historyTable.querySelector('[data-edit-score="' + p.id + '"]');
+      var bingoInput = historyTable.querySelector('[data-edit-bingo="' + p.id + '"]');
+      newEntries[p.id] = {
+        points: scoreInput ? Number(scoreInput.value) || 0 : 0,
+        bingo: bingoInput ? bingoInput.checked : false
+      };
+    });
+    round.entries = newEntries;
+    editingRoundId = null;
+    saveState();
+    renderAll();
+  }
+
+  function renderHistory() {
+    historyCard.hidden = state.rounds.length === 0;
+    if (state.rounds.length === 0) return;
+
+    var head = '<thead><tr><th>Ronda</th>' +
+      state.players.map(function (p) { return '<th>' + escapeHtml(p.name) + '</th>'; }).join('') +
+      '<th></th></tr></thead>';
+
+    var rows = state.rounds.map(function (round, idx) {
+      var isEditing = editingRoundId === round.id;
+
+      if (isEditing) {
+        var cells = state.players.map(function (p) {
+          var entry = round.entries[p.id];
+          if (entry === undefined) return '<td>—</td>';
+          return '<td class="edit-round-row">' +
+            '<input type="number" min="0" step="1" value="' + entry.points + '" data-edit-score="' + p.id + '" />' +
+            '<label class="bingo-toggle' + (entry.bingo ? ' active' : '') + '" style="margin-top:6px;">' +
+              '<input type="checkbox" data-edit-bingo="' + p.id + '" ' + (entry.bingo ? 'checked' : '') + ' /> Bingo' +
+            '</label>' +
+            '</td>';
+        }).join('');
+        return '<tr>' +
+          '<td>' + (idx + 1) + '</td>' +
+          cells +
+          '<td class="row-actions">' +
+            '<button class="btn-icon" data-save-round="' + round.id + '" aria-label="Guardar">✓</button>' +
+            '<button class="btn-icon" data-cancel-round="' + round.id + '" aria-label="Cancelar">✕</button>' +
+          '</td>' +
+          '</tr>';
+      }
+
+      var cells = state.players.map(function (p) {
+        var entry = round.entries[p.id];
+        if (entry === undefined) return '<td>—</td>';
+        return '<td class="cell-score">' + roundEntryTotal(entry) +
+          (entry.bingo ? '<span class="bingo-mark">BINGO</span>' : '') +
+          '</td>';
+      }).join('');
+
+      return '<tr>' +
+        '<td>' + (idx + 1) + '</td>' +
+        cells +
+        '<td class="row-actions">' +
+          '<button class="btn-icon" data-edit-round="' + round.id + '" aria-label="Editar ronda">✎</button>' +
+          '<button class="btn-icon danger" data-delete-round="' + round.id + '" aria-label="Eliminar ronda">🗑</button>' +
+        '</td>' +
+        '</tr>';
+    }).join('');
+
+    historyTable.innerHTML = head + '<tbody>' + rows + '</tbody>';
+
+    historyTable.querySelectorAll('[data-edit-round]').forEach(function (btn) {
+      btn.addEventListener('click', function () { startEditRound(btn.getAttribute('data-edit-round')); });
+    });
+    historyTable.querySelectorAll('[data-delete-round]').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteRound(btn.getAttribute('data-delete-round')); });
+    });
+    historyTable.querySelectorAll('[data-save-round]').forEach(function (btn) {
+      btn.addEventListener('click', function () { saveEditRound(btn.getAttribute('data-save-round')); });
+    });
+    historyTable.querySelectorAll('[data-cancel-round]').forEach(function (btn) {
+      btn.addEventListener('click', cancelEditRound);
+    });
+  }
+
+  // ---------- new game ----------
+
+  document.getElementById('newGameBtn').addEventListener('click', function () {
+    openConfirm(
+      'Nueva partida',
+      'Se borrarán todos los jugadores, rondas y puntuaciones guardadas. Esta acción no se puede deshacer.',
+      function () {
+        state = defaultState();
+        editingRoundId = null;
+        saveState();
+        renderAll();
+      }
+    );
+  });
+
+  // ---------- render ----------
+
+  function renderAll() {
+    renderPlayers();
+    renderRoundForm();
+    renderScoreboard();
+    renderHistory();
+  }
+
+  function boot(initialData) {
+    if (initialData && Array.isArray(initialData.players) && Array.isArray(initialData.rounds)) {
+      state = initialData;
+    }
+    renderAll();
+  }
+
+  try {
+    if (window.claude && window.claude.hot) {
+      window.claude.hot.snapshot(function () { return state; });
+      if (window.claude.hot.ready) {
+        window.claude.hot.ready(boot);
+      } else {
+        boot(window.claude.hot.data);
+      }
+    } else {
+      boot();
+    }
+  } catch (e) {
+    boot();
+  }
+})();
+</script>
