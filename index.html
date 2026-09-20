@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Marcador Scrabble</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap');
@@ -65,12 +70,21 @@
      navegador y dejar el modal visible aunque tenga el atributo hidden. */
   [hidden] { display: none !important; }
 
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
   body {
     background: var(--bg);
     color: var(--ink);
     font-family: 'Inter', system-ui, sans-serif;
     display: flex;
     justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .app {
@@ -78,9 +92,12 @@
     max-width: 480px;
     min-height: 100%;
     padding: 0 16px 32px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow-x: hidden;
   }
 
   header.top {
@@ -94,12 +111,14 @@
     justify-content: space-between;
     gap: 12px;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
   }
 
   .brand {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
   }
 
   .brand .mark {
@@ -141,6 +160,7 @@
 
   .btn {
     padding: 10px 14px;
+    min-height: 44px;
     border-radius: 10px;
     font-weight: 600;
     font-size: 14px;
@@ -167,8 +187,8 @@
   .btn-danger:hover { filter: brightness(1.08); }
 
   .btn-icon {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
     background: var(--surface-2);
     border: 1px solid var(--border);
@@ -178,6 +198,7 @@
     justify-content: center;
     padding: 0;
     font-size: 15px;
+    flex-shrink: 0;
   }
   .btn-icon:hover { color: var(--ink); }
   .btn-icon.danger:hover { color: var(--danger); border-color: var(--danger); }
@@ -188,6 +209,7 @@
     border-radius: 14px;
     padding: 16px;
     box-shadow: var(--shadow);
+    max-width: 100%;
   }
 
   .card-head {
@@ -218,6 +240,7 @@
     border: 1px solid var(--border);
     padding: 3px 8px;
     border-radius: 999px;
+    flex-shrink: 0;
   }
 
   /* Players */
@@ -236,6 +259,7 @@
     border: 1px solid var(--border);
     border-radius: 999px;
     padding: 5px 6px 5px 5px;
+    min-height: 44px;
   }
 
   .tile-avatar {
@@ -274,8 +298,9 @@
   }
 
   .player-chip .remove {
-    width: 20px;
-    height: 20px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     border-radius: 50%;
     background: transparent;
     color: var(--ink-soft);
@@ -290,6 +315,14 @@
   .add-player-row {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+  .add-player-row input[type="text"] {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+  .add-player-row .btn {
+    flex-shrink: 0;
   }
 
   input[type="text"], input[type="number"] {
@@ -298,9 +331,11 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
-    font-size: 14px;
+    min-height: 44px;
+    font-size: 16px;
     color: var(--ink);
     width: 100%;
+    max-width: 100%;
   }
   input:focus-visible, button:focus-visible {
     outline: 2px solid var(--accent);
@@ -320,11 +355,12 @@
     gap: 10px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
   }
   .round-row:last-of-type { border-bottom: none; }
 
   .round-row .name {
-    flex: 1;
+    flex: 1 1 80px;
     font-weight: 600;
     font-size: 14px;
     min-width: 0;
@@ -335,8 +371,10 @@
 
   .round-row input[type="number"] {
     width: 76px;
+    min-width: 64px;
     text-align: right;
     font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
   }
 
   .bingo-toggle {
@@ -349,13 +387,14 @@
     letter-spacing: 0.03em;
     color: var(--ink-soft);
     padding: 6px 8px;
+    min-height: 32px;
     border-radius: 8px;
     border: 1px solid var(--border);
     cursor: pointer;
     user-select: none;
     flex-shrink: 0;
   }
-  .bingo-toggle input { accent-color: var(--gold); width: 14px; height: 14px; }
+  .bingo-toggle input { accent-color: var(--gold); width: 18px; height: 18px; }
   .bingo-toggle.active {
     background: color-mix(in srgb, var(--gold) 18%, transparent);
     border-color: var(--gold);
@@ -433,6 +472,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 4px 0;
+    min-height: 44px;
     font-family: 'Fraunces', serif;
     font-size: 16px;
     font-weight: 700;
@@ -441,7 +481,7 @@
   .history-toggle .chev { transition: transform 0.15s ease; color: var(--ink-soft); }
   .history-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
-  .history-wrap { overflow-x: auto; margin-top: 12px; }
+  .history-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 12px; max-width: 100%; }
 
   table.history {
     border-collapse: collapse;
@@ -479,6 +519,7 @@
     justify-content: center;
     z-index: 100;
     padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
   @media (min-width: 480px) {
     .modal-backdrop { align-items: center; }
@@ -508,6 +549,7 @@
     display: flex;
     gap: 10px;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   footer.foot {
@@ -516,8 +558,15 @@
     color: var(--ink-soft);
     padding: 8px 0 env(safe-area-inset-bottom, 0px);
   }
-</style>
 
+  @media (max-width: 360px) {
+    .app { padding-left: 12px; padding-right: 12px; }
+    .round-row input[type="number"] { width: 64px; min-width: 56px; }
+    .player-chip .name { max-width: 84px; }
+  }
+</style>
+</head>
+<body>
 <div class="app">
   <header class="top">
     <div class="brand">
@@ -1053,3 +1102,5 @@
   }
 })();
 </script>
+</body>
+</html>
