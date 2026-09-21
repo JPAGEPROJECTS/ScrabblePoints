@@ -662,6 +662,7 @@
       <span class="badge" id="pastGamesBadge">–</span>
     </div>
     <p class="hint" id="cloudConfigHint" hidden>Agrega tu URL y anon key de Supabase en el código (variables SUPABASE_URL / SUPABASE_ANON_KEY) para activar el historial en la nube.</p>
+    <p class="hint" id="cloudStatusHint" hidden></p>
     <div class="past-games-list" id="pastGamesList"></div>
     <div class="round-actions">
       <button class="btn btn-ghost" id="refreshPastGamesBtn" type="button">Actualizar</button>
@@ -702,6 +703,9 @@
   var supabaseClient = null;
   if (window.supabase && SUPABASE_URL.indexOf('TU_SUPABASE_URL') !== 0 && SUPABASE_ANON_KEY.indexOf('TU_SUPABASE_ANON_KEY') !== 0) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('[Supabase] Cliente inicializado. URL:', SUPABASE_URL);
+  } else {
+    console.warn('[Supabase] Cliente NO inicializado. window.supabase cargado:', !!window.supabase, '| SUPABASE_URL/ANON_KEY configuradas:', SUPABASE_URL.indexOf('TU_SUPABASE_URL') !== 0 && SUPABASE_ANON_KEY.indexOf('TU_SUPABASE_ANON_KEY') !== 0);
   }
 
   function uid() {
@@ -789,7 +793,12 @@
   // Archiva la partida actual (jugadores, totales y rondas) en Supabase.
   // Si no hay credenciales configuradas o no se jugó ninguna ronda, no hace nada.
   function saveCompletedGameToCloud() {
-    if (!supabaseClient || state.rounds.length === 0 || state.players.length === 0) {
+    if (!supabaseClient) {
+      console.log('[Supabase] saveCompletedGameToCloud: cliente no configurado, se omite el guardado.');
+      return Promise.resolve();
+    }
+    if (state.rounds.length === 0 || state.players.length === 0) {
+      console.log('[Supabase] saveCompletedGameToCloud: no hay rondas/jugadores, se omite el guardado.');
       return Promise.resolve();
     }
 
@@ -798,11 +807,14 @@
     var rankByPlayer = {};
     ranked.forEach(function (p, idx) { rankByPlayer[p.id] = idx + 1; });
 
+    console.log('[Supabase] Guardando partida: ' + state.players.length + ' jugadores, ' + state.rounds.length + ' rondas.');
+
     return supabaseClient.from('games')
       .insert({ rounds_played: state.rounds.length })
       .select()
       .single()
       .then(function (gameRes) {
+        console.log('[Supabase] Insert games ->', gameRes);
         if (gameRes.error) throw gameRes.error;
         var gameId = gameRes.data.id;
 
@@ -817,7 +829,11 @@
         });
 
         return supabaseClient.from('game_players').insert(playerRows).select().then(function (playersRes) {
+          console.log('[Supabase] Insert game_players ->', playersRes);
           if (playersRes.error) throw playersRes.error;
+          if (!playersRes.data || playersRes.data.length !== playerRows.length) {
+            throw new Error('game_players: se esperaban ' + playerRows.length + ' filas y llegaron ' + (playersRes.data ? playersRes.data.length : 0) + '. Revisa las policies RLS de insert.');
+          }
 
           var gamePlayerIdByPlayerId = {};
           state.players.forEach(function (p, idx) { gamePlayerIdByPlayerId[p.id] = playersRes.data[idx].id; });
@@ -827,6 +843,7 @@
           });
 
           return supabaseClient.from('game_rounds').insert(roundRows).select().then(function (roundsRes) {
+            console.log('[Supabase] Insert game_rounds ->', roundsRes);
             if (roundsRes.error) throw roundsRes.error;
 
             var scoreRows = [];
@@ -847,13 +864,19 @@
 
             if (scoreRows.length === 0) return null;
             return supabaseClient.from('game_round_scores').insert(scoreRows).then(function (scoresRes) {
+              console.log('[Supabase] Insert game_round_scores ->', scoresRes);
               if (scoresRes.error) throw scoresRes.error;
             });
           });
         });
       })
+      .then(function () {
+        console.log('[Supabase] Partida guardada correctamente.');
+        setCloudStatus('', false);
+      })
       .catch(function (err) {
-        console.error('No se pudo guardar la partida en Supabase:', err);
+        console.error('[Supabase] No se pudo guardar la partida:', err);
+        setCloudStatus('No se pudo guardar la última partida en la nube. Revisa la consola (F12) para el detalle.', true);
       });
   }
 
@@ -1213,7 +1236,19 @@
   var pastGamesBadge = document.getElementById('pastGamesBadge');
   var pastGamesList = document.getElementById('pastGamesList');
   var cloudConfigHint = document.getElementById('cloudConfigHint');
+  var cloudStatusHint = document.getElementById('cloudStatusHint');
   var refreshPastGamesBtn = document.getElementById('refreshPastGamesBtn');
+
+  function setCloudStatus(message, isError) {
+    if (!message) {
+      cloudStatusHint.hidden = true;
+      cloudStatusHint.textContent = '';
+      return;
+    }
+    cloudStatusHint.hidden = false;
+    cloudStatusHint.textContent = message;
+    cloudStatusHint.style.color = isError ? 'var(--danger)' : '';
+  }
 
   function formatGameDate(iso) {
     try {
@@ -1256,14 +1291,40 @@
   }
 
   function deletePastGame(gameId) {
+    console.log('[Supabase] Click en eliminar partida', gameId);
+    if (!supabaseClient) {
+      console.warn('[Supabase] deletePastGame: cliente no configurado.');
+      return;
+    }
     openConfirm(
       'Eliminar partida guardada',
       'Se eliminará esta partida del historial en la nube. Esta acción no se puede deshacer.',
       function () {
-        supabaseClient.from('games').delete().eq('id', gameId).then(function (res) {
-          if (res.error) console.error(res.error);
-          renderPastGames();
-        });
+        console.log('[Supabase] Confirmado, eliminando partida', gameId);
+        // .select() es necesario: sin él, Postgrest no devuelve las filas borradas
+        // y si RLS bloquea el delete (faltan policies "for delete"), la llamada
+        // "tiene éxito" pero borra 0 filas sin lanzar ningún error.
+        supabaseClient.from('games').delete().eq('id', gameId).select()
+          .then(function (res) {
+            console.log('[Supabase] Resultado delete games ->', res);
+            if (res.error) {
+              console.error('[Supabase] Error al eliminar la partida:', res.error);
+              setCloudStatus('No se pudo eliminar la partida: ' + res.error.message, true);
+              return;
+            }
+            if (!res.data || res.data.length === 0) {
+              console.warn('[Supabase] Delete no afectó ninguna fila. Probablemente faltan las policies RLS "for delete" en games/game_players/game_rounds/game_round_scores.');
+              setCloudStatus('No se pudo eliminar la partida (0 filas afectadas). Verifica en Supabase que existan las policies de DELETE para la clave anon.', true);
+              renderPastGames();
+              return;
+            }
+            setCloudStatus('', false);
+            renderPastGames();
+          })
+          .catch(function (err) {
+            console.error('[Supabase] Excepción al eliminar la partida:', err);
+            setCloudStatus('No se pudo eliminar la partida. Revisa la consola (F12).', true);
+          });
       }
     );
   }
@@ -1280,6 +1341,7 @@
     cloudConfigHint.hidden = true;
     refreshPastGamesBtn.hidden = false;
     pastGamesBadge.textContent = 'Cargando…';
+    console.log('[Supabase] Cargando partidas anteriores...');
 
     supabaseClient
       .from('games')
@@ -1287,14 +1349,16 @@
       .order('finished_at', { ascending: false })
       .limit(20)
       .then(function (res) {
+        console.log('[Supabase] Select games ->', res);
         if (res.error) throw res.error;
         pastGamesBadge.textContent = res.data.length;
         renderPastGamesList(res.data);
       })
       .catch(function (err) {
-        console.error('No se pudo cargar el historial de Supabase:', err);
+        console.error('[Supabase] No se pudo cargar el historial:', err);
         pastGamesBadge.textContent = 'Error';
         pastGamesList.innerHTML = '<p class="empty-state">No se pudo cargar el historial. Revisa la consola y tus credenciales.</p>';
+        setCloudStatus('No se pudo cargar el historial: ' + (err && err.message ? err.message : err), true);
       });
   }
 
