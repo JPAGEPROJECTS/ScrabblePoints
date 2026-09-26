@@ -22,6 +22,8 @@
     --danger-strong: #8f2c22;
     --tile-bg: #f0dfb0;
     --tile-ink: #3b2e1a;
+    --dl: #4a9fd1;
+    --tl: #2a5f9e;
     --shadow: 0 1px 2px rgba(43, 36, 32, 0.06), 0 4px 12px rgba(43, 36, 32, 0.06);
   }
 
@@ -41,6 +43,8 @@
       --danger-strong: #ef8479;
       --tile-bg: #3b3226;
       --tile-ink: #f3ecdc;
+      --dl: #4f95c4;
+      --tl: #6f9fe0;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
     }
   }
@@ -60,6 +64,8 @@
     --danger-strong: #ef8479;
     --tile-bg: #3b3226;
     --tile-ink: #f3ecdc;
+    --dl: #4f95c4;
+    --tl: #6f9fe0;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
   }
 
@@ -87,6 +93,11 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* overflow-x: hidden convierte a body/.app en contenedores de scroll y rompe
+     position: sticky (cabecera y marcador). clip recorta igual sin ese efecto;
+     los navegadores antiguos que no lo entienden se quedan con hidden. */
+  body, .app { overflow-x: clip; }
+
   .app {
     width: 100%;
     max-width: 480px;
@@ -98,6 +109,7 @@
     flex-direction: column;
     gap: 16px;
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   header.top {
@@ -360,7 +372,8 @@
   .round-row:last-of-type { border-bottom: none; }
 
   .round-row .name {
-    flex: 1 1 80px;
+    flex: 1 1 40px;
+    cursor: pointer;
     font-weight: 600;
     font-size: 14px;
     min-width: 0;
@@ -405,7 +418,160 @@
     margin-top: 14px;
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
   }
+
+  .round-row .tile-avatar { cursor: pointer; }
+  .round-row .calc-btn { width: 40px; height: 40px; font-size: 17px; }
+
+  /* Turno actual */
+  .round-row.is-turn {
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    box-shadow: inset 3px 0 0 var(--accent);
+    margin-inline: -8px;
+    padding-inline: 8px;
+    border-radius: 8px;
+  }
+  .score-row.is-turn { box-shadow: inset 3px 0 0 var(--accent); }
+  .turn-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+  }
+  .score-row:not(.is-turn) .turn-tag { display: none; }
+
+  /* Cabeceras con acciones */
+  .head-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-sm { min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+  .top-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-icon[aria-pressed="true"] {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  }
+
+  /* Reordenar jugadores */
+  .player-chip .move {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--ink-soft);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .player-chip .move:hover:not(:disabled) { color: var(--ink); border-color: var(--ink-soft); }
+  .player-chip .move:disabled { opacity: 0.35; cursor: default; }
+  .player-chip.reordering { padding-left: 6px; }
+  .player-chip .pos { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+
+  /* Calculadora de palabra */
+  .modal.calc { max-width: 440px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+  .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .modal .calc-head h3 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal.calc .hint { margin: 6px 0 0; font-size: 12px; }
+
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+  .seg button {
+    background: transparent;
+    color: var(--ink-soft);
+    font-weight: 700;
+    font-size: 12px;
+    min-width: 40px;
+    min-height: 36px;
+    padding: 0 10px;
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+  .calc-tiles { display: flex; flex-wrap: wrap; gap: 8px 6px; margin: 16px 0 4px; min-height: 48px; align-items: center; }
+  .calc-tile {
+    position: relative;
+    width: 40px;
+    height: 44px;
+    border-radius: 6px;
+    background: var(--tile-bg);
+    color: var(--tile-ink);
+    border: 2px solid var(--border);
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0 4px;
+  }
+  .calc-tile .val { position: absolute; bottom: 2px; right: 3px; font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; }
+  .calc-tile .mod {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 4px;
+    color: #fff;
+    line-height: 1.2;
+  }
+  .calc-tile.dl { border-color: var(--dl); }
+  .calc-tile.dl .mod { background: var(--dl); }
+  .calc-tile.tl { border-color: var(--tl); }
+  .calc-tile.tl .mod { background: var(--tl); }
+  .calc-tile.blank { background: transparent; border-style: dashed; border-color: var(--ink-soft); }
+  .calc-tile.blank .mod { background: var(--ink-soft); color: var(--surface); }
+  .calc-tile.unknown { opacity: 0.5; }
+
+  .calc-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .calc-line strong { font-variant-numeric: tabular-nums; font-size: 16px; }
+
+  .calc-words { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .calc-words li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 4px 4px 10px;
+  }
+  .calc-words .w { font-weight: 700; letter-spacing: 0.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .calc-words .p { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .calc-words .btn-icon { width: 32px; height: 32px; font-size: 12px; }
+
+  .calc-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 14px 0 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .calc-total strong { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; }
 
   /* Scoreboard */
   .score-list { display: flex; flex-direction: column; gap: 8px; }
@@ -602,10 +768,6 @@
 
   /* ---------- Tablet vertical ---------- */
   @media (min-width: 600px) {
-    /* overflow-x: hidden convierte a body/.app en contenedores de scroll y
-       rompe position: sticky; clip recorta igual sin ese efecto. */
-    body, .app { overflow-x: clip; }
-
     .app {
       max-width: 720px;
       padding: 0 24px 40px;
@@ -686,13 +848,19 @@
         <p class="tagline" id="roundTagline">Ronda 1</p>
       </div>
     </div>
-    <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
+    <div class="top-actions">
+      <button class="btn-icon" id="wakeLockBtn" type="button" aria-pressed="false" aria-label="Mantener la pantalla encendida" hidden>🔆</button>
+      <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
+    </div>
   </header>
 
   <section class="card" id="playersCard">
     <div class="card-head">
       <h2>🀫 Jugadores</h2>
-      <span class="badge" id="playerCountBadge">0</span>
+      <div class="head-actions">
+        <button class="btn btn-ghost btn-sm" id="reorderPlayersBtn" type="button" aria-pressed="false" hidden>Ordenar</button>
+        <span class="badge" id="playerCountBadge">0</span>
+      </div>
     </div>
     <div class="players-list" id="playersList"></div>
     <form class="add-player-row" id="addPlayerForm">
@@ -700,6 +868,7 @@
       <button type="submit" class="btn btn-primary">Añadir</button>
     </form>
     <p class="hint" id="playersHint">Añade al menos 2 jugadores para empezar a puntuar.</p>
+    <p class="hint" id="reorderHint" hidden>Usa ◀ ▶ para cambiar el orden de turno.</p>
   </section>
 
   <section class="card" id="roundCard">
@@ -709,6 +878,7 @@
     </div>
     <div id="roundForm"></div>
     <div class="round-actions">
+      <button class="btn btn-ghost" id="nextTurnBtn" type="button">Siguiente turno ▸</button>
       <button class="btn btn-primary" id="saveRoundBtn">Guardar ronda</button>
     </div>
   </section>
@@ -758,6 +928,46 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="calcBackdrop" hidden>
+  <div class="modal calc" role="dialog" aria-modal="true" aria-labelledby="calcTitle">
+    <div class="calc-head">
+      <h3 id="calcTitle">Calcular jugada</h3>
+      <div class="seg" id="calcLang" role="group" aria-label="Juego de fichas">
+        <button type="button" data-lang="es" aria-pressed="false">ES</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <input type="text" id="calcWord" placeholder="Escribe la palabra" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" />
+    <div class="calc-tiles" id="calcTiles"></div>
+    <p class="hint">Toca una ficha para marcarla: doble letra → triple letra → comodín (0 pts).</p>
+    <p class="hint" id="calcUnknownHint" hidden>Hay letras que no existen en este juego de fichas; cuentan 0.</p>
+    <div class="calc-line">
+      <span>Palabra</span>
+      <div class="seg" id="calcWordMult" role="group" aria-label="Multiplicador de palabra">
+        <button type="button" data-mult="1">×1</button>
+        <button type="button" data-mult="2">×2</button>
+        <button type="button" data-mult="3">×3</button>
+        <button type="button" data-mult="4">×4</button>
+        <button type="button" data-mult="9">×9</button>
+      </div>
+    </div>
+    <div class="calc-line">
+      <span>Esta palabra: <strong id="calcWordPts">0</strong></span>
+      <button type="button" class="btn btn-ghost btn-sm" id="calcAddWord">+ Añadir otra palabra</button>
+    </div>
+    <ul class="calc-words" id="calcWords"></ul>
+    <div class="calc-total">
+      <span>Total de la jugada</span>
+      <strong id="calcTotal">0</strong>
+    </div>
+    <p class="hint" style="margin: -4px 0 14px;">El bingo (+50) se marca aparte en la ronda.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="calcCancel">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="calcApply">Poner 0 puntos</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
@@ -765,10 +975,35 @@
 
   var STORAGE_KEY = 'scrabble-scorer-state-v1';
 
-  var LETTER_VALUES = {
-    A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,
-    P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10
+  var TILE_LANG_KEY = 'scrabble-tile-lang';
+  var WAKE_LOCK_KEY = 'scrabble-wake-lock';
+
+  // Valores de las fichas. En español CH, LL y RR son fichas únicas y no hay K ni W.
+  var TILE_SETS = {
+    es: {
+      A:1,B:3,C:3,CH:5,D:2,E:1,F:4,G:2,H:4,I:1,J:8,L:1,LL:8,M:3,N:1,'Ñ':8,O:1,
+      P:3,Q:5,R:1,RR:8,S:1,T:1,U:1,V:4,X:8,Y:4,Z:10
+    },
+    en: {
+      A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,
+      P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10
+    }
   };
+
+  function readPref(key, fallback) {
+    try {
+      var value = localStorage.getItem(key);
+      return value === null ? fallback : value;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function writePref(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
+  }
+
+  var tileLang = TILE_SETS[readPref(TILE_LANG_KEY, 'es')] ? readPref(TILE_LANG_KEY, 'es') : 'es';
 
   // ---------- Supabase (historial de partidas en la nube) ----------
   // Reemplaza estos dos valores por los de tu proyecto Supabase.
@@ -789,7 +1024,7 @@
   }
 
   function defaultState() {
-    return { players: [], rounds: [] };
+    return { players: [], rounds: [], turnPlayerId: null };
   }
 
   function loadState() {
@@ -825,7 +1060,7 @@
 
   function tileValueFor(name) {
     var letter = (name || '?').trim().charAt(0).toUpperCase();
-    return LETTER_VALUES[letter] || 1;
+    return TILE_SETS[tileLang][letter] || 1;
   }
 
   function tileAvatarHtml(name) {
@@ -865,95 +1100,196 @@
     }).length;
   }
 
-  // Archiva la partida actual (jugadores, totales y rondas) en Supabase.
-  // Si no hay credenciales configuradas o no se jugó ninguna ronda, no hace nada.
-  function saveCompletedGameToCloud() {
-    if (!supabaseClient) {
-      console.log('[Supabase] saveCompletedGameToCloud: cliente no configurado, se omite el guardado.');
-      return Promise.resolve();
-    }
-    if (state.rounds.length === 0 || state.players.length === 0) {
-      console.log('[Supabase] saveCompletedGameToCloud: no hay rondas/jugadores, se omite el guardado.');
-      return Promise.resolve();
-    }
+  // Puesto con empates: 1 + cuántos jugadores tienen estrictamente más puntos
+  // (100, 100, 80 -> 1, 1, 3).
+  function rankFor(playerId, totals) {
+    var mine = totals[playerId];
+    return 1 + state.players.filter(function (p) { return totals[p.id] > mine; }).length;
+  }
 
+  // Foto de la partida actual lista para subir. No depende del estado, así que
+  // puede esperar en la cola local todo lo que haga falta.
+  function buildGamePayload() {
     var totals = totalsByPlayer();
-    var ranked = state.players.slice().sort(function (a, b) { return totals[b.id] - totals[a.id]; });
-    var rankByPlayer = {};
-    ranked.forEach(function (p, idx) { rankByPlayer[p.id] = idx + 1; });
+    return {
+      finished_at: new Date().toISOString(),
+      rounds_played: state.rounds.length,
+      players: state.players.map(function (p) {
+        return {
+          key: p.id,
+          name: p.name,
+          total_score: totals[p.id],
+          bingo_count: bingoCountFor(p.id),
+          rank: rankFor(p.id, totals)
+        };
+      }),
+      rounds: state.rounds.map(function (round, idx) {
+        return {
+          round_number: idx + 1,
+          scores: Object.keys(round.entries).filter(function (pid) {
+            return totals[pid] !== undefined;
+          }).map(function (pid) {
+            var entry = round.entries[pid];
+            return { player_key: pid, points: Number(entry.points) || 0, bingo: !!entry.bingo };
+          })
+        };
+      })
+    };
+  }
 
-    console.log('[Supabase] Guardando partida: ' + state.players.length + ' jugadores, ' + state.rounds.length + ' rondas.');
+  // Guardado atómico mediante la función save_game (supabase/save_game.sql):
+  // o se guarda la partida entera o no se guarda nada.
+  function uploadGame(payload) {
+    return supabaseClient.rpc('save_game', {
+      p_finished_at: payload.finished_at,
+      p_rounds_played: payload.rounds_played,
+      p_players: payload.players,
+      p_rounds: payload.rounds
+    }).then(function (res) {
+      console.log('[Supabase] rpc save_game ->', res);
+      if (res.error && res.error.code === 'PGRST202') {
+        console.warn('[Supabase] La función save_game no existe todavía. Ejecuta supabase/save_game.sql en el SQL Editor. Usando el guardado por pasos (no atómico).');
+        return uploadGameLegacy(payload);
+      }
+      if (res.error) throw res.error;
+    });
+  }
 
+  // Guardado antiguo en cuatro inserciones. Solo se usa si falta save_game.
+  function uploadGameLegacy(payload) {
     return supabaseClient.from('games')
-      .insert({ rounds_played: state.rounds.length })
+      .insert({ rounds_played: payload.rounds_played, finished_at: payload.finished_at })
       .select()
       .single()
       .then(function (gameRes) {
-        console.log('[Supabase] Insert games ->', gameRes);
         if (gameRes.error) throw gameRes.error;
         var gameId = gameRes.data.id;
 
-        var playerRows = state.players.map(function (p) {
-          return {
-            game_id: gameId,
-            name: p.name,
-            total_score: totals[p.id],
-            bingo_count: bingoCountFor(p.id),
-            rank: rankByPlayer[p.id]
-          };
+        var playerRows = payload.players.map(function (p) {
+          return { game_id: gameId, name: p.name, total_score: p.total_score, bingo_count: p.bingo_count, rank: p.rank };
         });
 
         return supabaseClient.from('game_players').insert(playerRows).select().then(function (playersRes) {
-          console.log('[Supabase] Insert game_players ->', playersRes);
           if (playersRes.error) throw playersRes.error;
           if (!playersRes.data || playersRes.data.length !== playerRows.length) {
             throw new Error('game_players: se esperaban ' + playerRows.length + ' filas y llegaron ' + (playersRes.data ? playersRes.data.length : 0) + '. Revisa las policies RLS de insert.');
           }
 
-          var gamePlayerIdByPlayerId = {};
-          state.players.forEach(function (p, idx) { gamePlayerIdByPlayerId[p.id] = playersRes.data[idx].id; });
+          var gamePlayerIdByKey = {};
+          payload.players.forEach(function (p, idx) { gamePlayerIdByKey[p.key] = playersRes.data[idx].id; });
 
-          var roundRows = state.rounds.map(function (r, idx) {
-            return { game_id: gameId, round_number: idx + 1 };
+          var roundRows = payload.rounds.map(function (r) {
+            return { game_id: gameId, round_number: r.round_number };
           });
 
           return supabaseClient.from('game_rounds').insert(roundRows).select().then(function (roundsRes) {
-            console.log('[Supabase] Insert game_rounds ->', roundsRes);
             if (roundsRes.error) throw roundsRes.error;
 
             var scoreRows = [];
-            state.rounds.forEach(function (round, idx) {
+            payload.rounds.forEach(function (round, idx) {
               var gameRoundId = roundsRes.data[idx].id;
-              Object.keys(round.entries).forEach(function (pid) {
-                var gamePlayerId = gamePlayerIdByPlayerId[pid];
+              round.scores.forEach(function (s) {
+                var gamePlayerId = gamePlayerIdByKey[s.player_key];
                 if (!gamePlayerId) return;
-                var entry = round.entries[pid];
-                scoreRows.push({
-                  game_round_id: gameRoundId,
-                  game_player_id: gamePlayerId,
-                  points: Number(entry.points) || 0,
-                  bingo: !!entry.bingo
-                });
+                scoreRows.push({ game_round_id: gameRoundId, game_player_id: gamePlayerId, points: s.points, bingo: s.bingo });
               });
             });
 
             if (scoreRows.length === 0) return null;
             return supabaseClient.from('game_round_scores').insert(scoreRows).then(function (scoresRes) {
-              console.log('[Supabase] Insert game_round_scores ->', scoresRes);
               if (scoresRes.error) throw scoresRes.error;
             });
           });
         });
-      })
+      });
+  }
+
+  // ---------- cola local de partidas pendientes de subir ----------
+  // La partida se escribe aquí ANTES de intentar subirla y solo se quita cuando
+  // Supabase confirma el guardado: si no hay conexión, no se pierde nada.
+
+  var PENDING_KEY = 'scrabble-pending-games-v1';
+  var pendingGames = loadPendingGames();
+  var flushingPending = null;
+
+  function loadPendingGames() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function savePendingGames() {
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(pendingGames));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function describePending() {
+    var n = pendingGames.length;
+    return n === 1
+      ? 'Hay 1 partida guardada en este dispositivo pendiente de subir a la nube. Se reintentará automáticamente.'
+      : 'Hay ' + n + ' partidas guardadas en este dispositivo pendientes de subir a la nube. Se reintentará automáticamente.';
+  }
+
+  // Sube las partidas pendientes en orden. Devuelve una promesa que nunca falla.
+  function flushPendingGames() {
+    if (!supabaseClient || pendingGames.length === 0) return Promise.resolve();
+    if (flushingPending) return flushingPending;
+
+    function next() {
+      if (pendingGames.length === 0) return Promise.resolve();
+      var payload = pendingGames[0];
+      console.log('[Supabase] Subiendo partida pendiente (' + payload.players.length + ' jugadores, ' + payload.rounds_played + ' rondas).');
+      return uploadGame(payload).then(function () {
+        pendingGames.shift();
+        savePendingGames();
+        return next();
+      });
+    }
+
+    flushingPending = next()
       .then(function () {
-        console.log('[Supabase] Partida guardada correctamente.');
+        console.log('[Supabase] Partidas pendientes subidas.');
         setCloudStatus('', false);
       })
       .catch(function (err) {
-        console.error('[Supabase] No se pudo guardar la partida:', err);
-        setCloudStatus('No se pudo guardar la última partida en la nube. Revisa la consola (F12) para el detalle.', true);
+        console.error('[Supabase] No se pudo subir la partida:', err);
+        setCloudStatus(describePending(), true);
+      })
+      .then(function () {
+        flushingPending = null;
+        if (pendingGames.length > 0) setCloudStatus(describePending(), true);
       });
+    return flushingPending;
   }
+
+  // Archiva la partida actual. Resuelve true si la partida está a salvo (subida
+  // o en la cola local) y false si no se pudo guardar en ningún sitio.
+  function archiveCurrentGame() {
+    if (state.rounds.length === 0 || state.players.length === 0) return Promise.resolve(true);
+    if (!supabaseClient) {
+      console.log('[Supabase] Cliente no configurado, la partida no se archiva.');
+      return Promise.resolve(true);
+    }
+
+    pendingGames.push(buildGamePayload());
+    if (!savePendingGames()) {
+      // Sin almacenamiento local: la única copia es la memoria, así que hay
+      // que confirmar la subida antes de borrar nada.
+      return flushPendingGames().then(function () { return pendingGames.length === 0; });
+    }
+    return flushPendingGames().then(function () { return true; });
+  }
+
+  window.addEventListener('online', function () {
+    flushPendingGames().then(renderPastGames);
+  });
 
   // ---------- modal ----------
 
@@ -1019,7 +1355,12 @@
       'Quitar a ' + player.name,
       'Se eliminarán también sus puntos registrados en todas las rondas. Esta acción no se puede deshacer.',
       function () {
+        var removedIdx = state.players.indexOf(player);
         state.players = state.players.filter(function (p) { return p.id !== playerId; });
+        if (state.turnPlayerId === playerId) {
+          var next = state.players[removedIdx] || state.players[0];
+          state.turnPlayerId = next ? next.id : null;
+        }
         state.rounds.forEach(function (r) { delete r.entries[playerId]; });
         state.rounds = state.rounds.filter(function (r) { return Object.keys(r.entries).length > 0; });
         saveState();
@@ -1035,16 +1376,55 @@
     newPlayerName.focus();
   });
 
+  var reorderPlayersBtn = document.getElementById('reorderPlayersBtn');
+  var reorderHint = document.getElementById('reorderHint');
+  var reorderMode = false;
+
+  function movePlayer(playerId, delta) {
+    var idx = state.players.findIndex(function (p) { return p.id === playerId; });
+    var target = idx + delta;
+    if (idx === -1 || target < 0 || target >= state.players.length) return;
+    var moved = state.players.splice(idx, 1)[0];
+    state.players.splice(target, 0, moved);
+    saveState();
+    renderAll();
+
+    // Mantener el foco en la flecha para poder seguir moviendo con teclado.
+    var btn = playersList.querySelector('[data-move="' + playerId + '"][data-dir="' + delta + '"]');
+    if (!btn || btn.disabled) btn = playersList.querySelector('[data-move="' + playerId + '"]:not(:disabled)');
+    if (btn) btn.focus();
+  }
+
+  reorderPlayersBtn.addEventListener('click', function () {
+    reorderMode = !reorderMode;
+    renderPlayers();
+  });
+
   function renderPlayers() {
     playerCountBadge.textContent = state.players.length;
     playersHint.hidden = state.players.length >= 2;
+
+    if (state.players.length < 2) reorderMode = false;
+    reorderPlayersBtn.hidden = state.players.length < 2;
+    reorderPlayersBtn.textContent = reorderMode ? 'Listo' : 'Ordenar';
+    reorderPlayersBtn.setAttribute('aria-pressed', String(reorderMode));
+    reorderHint.hidden = !reorderMode;
 
     if (state.players.length === 0) {
       playersList.innerHTML = '<p class="hint" style="margin:0;">Todavía no hay jugadores.</p>';
       return;
     }
 
-    playersList.innerHTML = state.players.map(function (p) {
+    var last = state.players.length - 1;
+    playersList.innerHTML = state.players.map(function (p, idx) {
+      if (reorderMode) {
+        return '<div class="player-chip reordering" data-player-id="' + p.id + '">' +
+          '<button type="button" class="move" data-move="' + p.id + '" data-dir="-1" aria-label="Mover antes"' + (idx === 0 ? ' disabled' : '') + '>◀</button>' +
+          '<span class="pos">' + (idx + 1) + '.</span>' +
+          '<span class="name">' + escapeHtml(p.name) + '</span>' +
+          '<button type="button" class="move" data-move="' + p.id + '" data-dir="1" aria-label="Mover después"' + (idx === last ? ' disabled' : '') + '>▶</button>' +
+          '</div>';
+      }
       return '<div class="player-chip" data-player-id="' + p.id + '">' +
         tileAvatarHtml(p.name) +
         '<span class="name">' + escapeHtml(p.name) + '</span>' +
@@ -1055,6 +1435,11 @@
     playersList.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         removePlayer(btn.getAttribute('data-remove'));
+      });
+    });
+    playersList.querySelectorAll('[data-move]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        movePlayer(btn.getAttribute('data-move'), Number(btn.getAttribute('data-dir')));
       });
     });
   }
@@ -1071,34 +1456,114 @@
     return state.rounds.length + 1;
   }
 
-  function renderRoundForm() {
+  var nextTurnBtn = document.getElementById('nextTurnBtn');
+
+  // Lo que ya se ha escrito en el formulario, para no perderlo al re-renderizar
+  // (añadir/ordenar jugadores, cambiar el juego de fichas...).
+  function readRoundDraft() {
+    var draft = {};
+    roundForm.querySelectorAll('[data-row-player]').forEach(function (row) {
+      var scoreInput = row.querySelector('[data-score]');
+      var bingoInput = row.querySelector('[data-bingo]');
+      draft[row.getAttribute('data-row-player')] = {
+        points: scoreInput ? scoreInput.value : '',
+        bingo: bingoInput ? bingoInput.checked : false
+      };
+    });
+    return draft;
+  }
+
+  function renderRoundForm(resetDraft) {
     var num = currentRoundNumber();
     roundBadge.textContent = 'Ronda ' + num;
-    roundTagline.textContent = 'Ronda ' + num;
 
+    var draft = resetDraft ? {} : readRoundDraft();
     var enoughPlayers = state.players.length >= 2;
     roundCard.hidden = !enoughPlayers;
-    if (!enoughPlayers) return;
+    if (!enoughPlayers) {
+      roundForm.innerHTML = '';
+      return;
+    }
 
     roundForm.innerHTML = state.players.map(function (p) {
+      var d = draft[p.id] || {};
+      var pts = d.points !== undefined && d.points !== '' && !isNaN(Number(d.points)) ? String(Number(d.points)) : '';
       return '<div class="round-row" data-row-player="' + p.id + '">' +
         tileAvatarHtml(p.name) +
-        '<span class="name">' + escapeHtml(p.name) + '</span>' +
-        '<label class="bingo-toggle" data-bingo-label="' + p.id + '">' +
-          '<input type="checkbox" data-bingo="' + p.id + '" /> Bingo +50' +
+        '<span class="name" title="Marcar su turno">' + escapeHtml(p.name) + '</span>' +
+        '<label class="bingo-toggle' + (d.bingo ? ' active' : '') + '" data-bingo-label="' + p.id + '">' +
+          '<input type="checkbox" data-bingo="' + p.id + '"' + (d.bingo ? ' checked' : '') + ' /> Bingo +50' +
         '</label>' +
-        '<input type="number" inputmode="numeric" min="0" step="1" placeholder="0" data-score="' + p.id + '" id="score-' + p.id + '" />' +
+        '<button type="button" class="btn-icon calc-btn" data-calc="' + p.id + '" aria-label="Calcular jugada" title="Calcular jugada">🧮</button>' +
+        '<input type="number" inputmode="numeric" enterkeyhint="next" step="1" placeholder="0" value="' + pts + '" data-score="' + p.id + '" id="score-' + p.id + '" />' +
         '</div>';
     }).join('');
 
-    state.players.forEach(function (p) {
-      var checkbox = roundForm.querySelector('[data-bingo="' + p.id + '"]');
-      var label = roundForm.querySelector('[data-bingo-label="' + p.id + '"]');
+    state.players.forEach(function (p, idx) {
+      var row = roundForm.querySelector('[data-row-player="' + p.id + '"]');
+      var checkbox = row.querySelector('[data-bingo]');
+      var label = row.querySelector('[data-bingo-label]');
       checkbox.addEventListener('change', function () {
         label.classList.toggle('active', checkbox.checked);
       });
+
+      row.querySelector('.name').addEventListener('click', function () { setTurn(p.id, true); });
+      row.querySelector('.tile-avatar').addEventListener('click', function () { setTurn(p.id, true); });
+      row.querySelector('[data-calc]').addEventListener('click', function () { openCalc(p.id); });
+
+      // Enter en la puntuación pasa al siguiente jugador (o al botón de guardar).
+      row.querySelector('[data-score]').addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var next = state.players[idx + 1];
+        if (next) {
+          setTurn(next.id, true);
+        } else {
+          setTurn(p.id, false);
+          saveRoundBtn.focus();
+        }
+      });
     });
   }
+
+  // ---------- turno actual ----------
+
+  function turnIndex() {
+    var idx = state.players.findIndex(function (p) { return p.id === state.turnPlayerId; });
+    return idx === -1 ? 0 : idx;
+  }
+
+  function setTurn(playerId, focusInput) {
+    state.turnPlayerId = playerId;
+    saveState();
+    updateTurnUI();
+    if (focusInput) {
+      var input = roundForm.querySelector('[data-score="' + playerId + '"]');
+      if (input) input.focus();
+    }
+  }
+
+  function updateTurnUI() {
+    var num = currentRoundNumber();
+    var enoughPlayers = state.players.length >= 2;
+    var idx = turnIndex();
+    var current = enoughPlayers ? state.players[idx] : null;
+
+    roundTagline.textContent = 'Ronda ' + num + (current ? ' · Turno de ' + current.name : '');
+    nextTurnBtn.hidden = !current || idx === state.players.length - 1;
+
+    roundForm.querySelectorAll('[data-row-player]').forEach(function (row) {
+      row.classList.toggle('is-turn', !!current && row.getAttribute('data-row-player') === current.id);
+    });
+    scoreList.querySelectorAll('[data-score-player]').forEach(function (row) {
+      row.classList.toggle('is-turn', !!current && row.getAttribute('data-score-player') === current.id);
+    });
+  }
+
+  nextTurnBtn.addEventListener('click', function () {
+    var next = state.players[turnIndex() + 1];
+    if (next) setTurn(next.id, true);
+  });
 
   function collectRoundEntries() {
     var entries = {};
@@ -1114,6 +1579,14 @@
     return { entries: entries, anyValue: anyValue };
   }
 
+  function commitRound(entries) {
+    state.rounds.push({ id: uid(), entries: entries });
+    // Cada ronda nueva la empieza el primer jugador del orden.
+    state.turnPlayerId = state.players[0] ? state.players[0].id : null;
+    saveState();
+    renderAll({ resetRound: true });
+  }
+
   saveRoundBtn.addEventListener('click', function () {
     if (state.players.length < 2) return;
     var collected = collectRoundEntries();
@@ -1121,17 +1594,11 @@
       openConfirm(
         'Ronda vacía',
         'No has introducido ninguna puntuación. ¿Quieres guardarla igualmente con 0 puntos para todos?',
-        function () {
-          state.rounds.push({ id: uid(), entries: collected.entries });
-          saveState();
-          renderAll();
-        }
+        function () { commitRound(collected.entries); }
       );
       return;
     }
-    state.rounds.push({ id: uid(), entries: collected.entries });
-    saveState();
-    renderAll();
+    commitRound(collected.entries);
   });
 
   // ---------- scoreboard ----------
@@ -1155,11 +1622,11 @@
       var total = totals[p.id];
       var isLeader = state.rounds.length > 0 && maxTotal > 0 && total === maxTotal;
       var played = roundsPlayedFor(p.id);
-      return '<div class="score-row' + (isLeader ? ' leader' : '') + '">' +
-        '<span class="rank">' + (idx + 1) + '</span>' +
+      return '<div class="score-row' + (isLeader ? ' leader' : '') + '" data-score-player="' + p.id + '">' +
+        '<span class="rank">' + rankFor(p.id, totals) + '</span>' +
         tileAvatarHtml(p.name) +
         '<div class="info">' +
-          '<div class="name">' + escapeHtml(p.name) + (isLeader ? ' 👑' : '') + '</div>' +
+          '<div class="name">' + escapeHtml(p.name) + (isLeader ? ' 👑' : '') + '<span class="turn-tag">Turno</span></div>' +
           '<div class="rounds-played">' + played + (played === 1 ? ' ronda jugada' : ' rondas jugadas') + '</div>' +
         '</div>' +
         '<div class="total">' + total + '</div>' +
@@ -1238,7 +1705,7 @@
           var entry = round.entries[p.id];
           if (entry === undefined) return '<td>—</td>';
           return '<td class="edit-round-row">' +
-            '<input type="number" min="0" step="1" value="' + entry.points + '" data-edit-score="' + p.id + '" />' +
+            '<input type="number" step="1" value="' + entry.points + '" data-edit-score="' + p.id + '" />' +
             '<label class="bingo-toggle' + (entry.bingo ? ' active' : '') + '" style="margin-top:6px;">' +
               '<input type="checkbox" data-edit-bingo="' + p.id + '" ' + (entry.bingo ? 'checked' : '') + ' /> Bingo' +
             '</label>' +
@@ -1290,16 +1757,25 @@
 
   // ---------- new game ----------
 
-  document.getElementById('newGameBtn').addEventListener('click', function () {
+  var newGameBtn = document.getElementById('newGameBtn');
+
+  newGameBtn.addEventListener('click', function () {
     openConfirm(
       'Nueva partida',
-      'Se borrarán todos los jugadores, rondas y puntuaciones guardadas. Esta acción no se puede deshacer. La partida actual se archivará en la nube si Supabase está configurado.',
+      'Se borrarán los jugadores, rondas y puntuaciones de la partida actual. Antes se archivará en la nube; si no hay conexión, se guarda en este dispositivo y se sube más tarde.',
       function () {
-        saveCompletedGameToCloud().then(function () {
+        newGameBtn.disabled = true;
+        archiveCurrentGame().then(function (safe) {
+          newGameBtn.disabled = false;
+          if (!safe) {
+            setCloudStatus('No se pudo archivar la partida y este dispositivo no permite guardarla localmente. La partida actual NO se ha borrado; inténtalo de nuevo con conexión.', true);
+            return;
+          }
           state = defaultState();
           editingRoundId = null;
+          reorderMode = false;
           saveState();
-          renderAll();
+          renderAll({ resetRound: true });
           renderPastGames();
         });
       }
@@ -1356,51 +1832,6 @@
         '<div class="past-game-players">' + playersHtml + '</div>' +
         '</div>';
     }).join('');
-
-    pastGamesList.querySelectorAll('[data-delete-game]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        deletePastGame(btn.getAttribute('data-delete-game'));
-      });
-    });
-  }
-
-  function deletePastGame(gameId) {
-    console.log('[Supabase] Click en eliminar partida', gameId);
-    if (!supabaseClient) {
-      console.warn('[Supabase] deletePastGame: cliente no configurado.');
-      return;
-    }
-    openConfirm(
-      'Eliminar partida guardada',
-      'Se eliminará esta partida del historial en la nube. Esta acción no se puede deshacer.',
-      function () {
-        console.log('[Supabase] Confirmado, eliminando partida', gameId);
-        // .select() es necesario: sin él, Postgrest no devuelve las filas borradas
-        // y si RLS bloquea el delete (faltan policies "for delete"), la llamada
-        // "tiene éxito" pero borra 0 filas sin lanzar ningún error.
-        supabaseClient.from('games').delete().eq('id', gameId).select()
-          .then(function (res) {
-            console.log('[Supabase] Resultado delete games ->', res);
-            if (res.error) {
-              console.error('[Supabase] Error al eliminar la partida:', res.error);
-              setCloudStatus('No se pudo eliminar la partida: ' + res.error.message, true);
-              return;
-            }
-            if (!res.data || res.data.length === 0) {
-              console.warn('[Supabase] Delete no afectó ninguna fila. Probablemente faltan las policies RLS "for delete" en games/game_players/game_rounds/game_round_scores.');
-              setCloudStatus('No se pudo eliminar la partida (0 filas afectadas). Verifica en Supabase que existan las policies de DELETE para la clave anon.', true);
-              renderPastGames();
-              return;
-            }
-            setCloudStatus('', false);
-            renderPastGames();
-          })
-          .catch(function (err) {
-            console.error('[Supabase] Excepción al eliminar la partida:', err);
-            setCloudStatus('No se pudo eliminar la partida. Revisa la consola (F12).', true);
-          });
-      }
-    );
   }
 
   function renderPastGames() {
@@ -1436,15 +1867,283 @@
       });
   }
 
-  refreshPastGamesBtn.addEventListener('click', renderPastGames);
+  refreshPastGamesBtn.addEventListener('click', function () {
+    flushPendingGames().then(renderPastGames);
+  });
+
+  // ---------- calculadora de palabra ----------
+
+  var calcBackdrop = document.getElementById('calcBackdrop');
+  var calcTitle = document.getElementById('calcTitle');
+  var calcLang = document.getElementById('calcLang');
+  var calcWord = document.getElementById('calcWord');
+  var calcTiles = document.getElementById('calcTiles');
+  var calcUnknownHint = document.getElementById('calcUnknownHint');
+  var calcWordMult = document.getElementById('calcWordMult');
+  var calcWordPts = document.getElementById('calcWordPts');
+  var calcAddWord = document.getElementById('calcAddWord');
+  var calcWords = document.getElementById('calcWords');
+  var calcTotal = document.getElementById('calcTotal');
+  var calcApply = document.getElementById('calcApply');
+  var calcCancel = document.getElementById('calcCancel');
+
+  var MOD_CYCLE = ['', 'dl', 'tl', 'blank'];
+  var MOD_LABEL = { dl: '2L', tl: '3L', blank: 'COM' };
+  var calc = null; // { playerId, tiles: [{ t, mod }], wordMult, words: [{ label, pts }] }
+  var calcReturnFocus = null;
+
+  // Mayúsculas, sin tildes (salvo la Ñ) y solo letras.
+  function normalizeWord(str) {
+    var s = String(str || '').toUpperCase().replace(/Ñ/g, '\u0001');
+    if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    s = s.replace(/\u0001/g, tileLang === 'es' ? 'Ñ' : 'N');
+    return s.replace(/[^A-ZÑ]/g, '');
+  }
+
+  function tokenizeWord(str) {
+    var s = normalizeWord(str);
+    var tokens = [];
+    var i = 0;
+    while (i < s.length) {
+      var two = s.substr(i, 2);
+      if (tileLang === 'es' && (two === 'CH' || two === 'LL' || two === 'RR')) {
+        tokens.push(two);
+        i += 2;
+      } else {
+        tokens.push(s.charAt(i));
+        i += 1;
+      }
+    }
+    return tokens;
+  }
+
+  function letterValue(t) {
+    return TILE_SETS[tileLang][t];
+  }
+
+  function tileScore(tile) {
+    if (tile.mod === 'blank') return 0;
+    var v = letterValue(tile.t) || 0;
+    if (tile.mod === 'dl') return v * 2;
+    if (tile.mod === 'tl') return v * 3;
+    return v;
+  }
+
+  function currentWordPoints() {
+    if (!calc || calc.tiles.length === 0) return 0;
+    return calc.tiles.reduce(function (sum, tile) { return sum + tileScore(tile); }, 0) * calc.wordMult;
+  }
+
+  function calcGrandTotal() {
+    return calc.words.reduce(function (sum, w) { return sum + w.pts; }, 0) + currentWordPoints();
+  }
+
+  function retokenizeCalc() {
+    var old = calc.tiles;
+    calc.tiles = tokenizeWord(calcWord.value).map(function (t, i) {
+      return { t: t, mod: old[i] && old[i].t === t ? old[i].mod : '' };
+    });
+  }
+
+  function renderCalc() {
+    if (!calc) return;
+
+    calcLang.querySelectorAll('[data-lang]').forEach(function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-lang') === tileLang));
+    });
+    calcWordMult.querySelectorAll('[data-mult]').forEach(function (btn) {
+      btn.setAttribute('aria-pressed', String(Number(btn.getAttribute('data-mult')) === calc.wordMult));
+    });
+
+    var anyUnknown = false;
+    if (calc.tiles.length === 0) {
+      calcTiles.innerHTML = '<span class="hint" style="margin:0;">Escribe una palabra para ver sus fichas.</span>';
+    } else {
+      calcTiles.innerHTML = calc.tiles.map(function (tile, i) {
+        var known = letterValue(tile.t) !== undefined;
+        if (!known) anyUnknown = true;
+        return '<button type="button" class="calc-tile' + (tile.mod ? ' ' + tile.mod : '') + (known ? '' : ' unknown') + '" data-tile="' + i + '">' +
+          (tile.mod ? '<span class="mod">' + MOD_LABEL[tile.mod] + '</span>' : '') +
+          escapeHtml(tile.t) +
+          '<span class="val">' + (tile.mod === 'blank' ? 0 : (letterValue(tile.t) || 0)) + '</span>' +
+          '</button>';
+      }).join('');
+    }
+    calcUnknownHint.hidden = !anyUnknown;
+
+    calcWordPts.textContent = currentWordPoints();
+    calcAddWord.disabled = calc.tiles.length === 0;
+
+    calcWords.innerHTML = calc.words.map(function (w, i) {
+      return '<li><span class="w">' + escapeHtml(w.label) + '</span>' +
+        '<span class="p">' + w.pts + '</span>' +
+        '<button type="button" class="btn-icon danger" data-remove-word="' + i + '" aria-label="Quitar palabra">✕</button></li>';
+    }).join('');
+
+    var total = calcGrandTotal();
+    calcTotal.textContent = total;
+    calcApply.textContent = 'Poner ' + total + (total === 1 ? ' punto' : ' puntos');
+  }
+
+  function openCalc(playerId) {
+    var player = state.players.find(function (p) { return p.id === playerId; });
+    if (!player) return;
+    calc = { playerId: playerId, tiles: [], wordMult: 1, words: [] };
+    calcTitle.textContent = 'Jugada de ' + player.name;
+    calcWord.value = '';
+    calcReturnFocus = document.activeElement;
+    renderCalc();
+    calcBackdrop.hidden = false;
+    calcWord.focus();
+  }
+
+  function closeCalc() {
+    calcBackdrop.hidden = true;
+    calc = null;
+    if (calcReturnFocus && typeof calcReturnFocus.focus === 'function') calcReturnFocus.focus();
+    calcReturnFocus = null;
+  }
+
+  function addCalcWord() {
+    if (!calc || calc.tiles.length === 0) return;
+    calc.words.push({
+      label: calc.tiles.map(function (tile) { return tile.t; }).join('') + (calc.wordMult > 1 ? ' ×' + calc.wordMult : ''),
+      pts: currentWordPoints()
+    });
+    calc.tiles = [];
+    calc.wordMult = 1;
+    calcWord.value = '';
+    renderCalc();
+    calcWord.focus();
+  }
+
+  calcWord.addEventListener('input', function () {
+    if (!calc) return;
+    retokenizeCalc();
+    renderCalc();
+  });
+  calcWord.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCalcWord();
+    }
+  });
+
+  calcTiles.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-tile]');
+    if (!btn || !calc) return;
+    var tile = calc.tiles[Number(btn.getAttribute('data-tile'))];
+    tile.mod = MOD_CYCLE[(MOD_CYCLE.indexOf(tile.mod) + 1) % MOD_CYCLE.length];
+    renderCalc();
+    var again = calcTiles.querySelector('[data-tile="' + btn.getAttribute('data-tile') + '"]');
+    if (again) again.focus();
+  });
+
+  calcWordMult.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-mult]');
+    if (!btn || !calc) return;
+    calc.wordMult = Number(btn.getAttribute('data-mult'));
+    renderCalc();
+  });
+
+  calcLang.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-lang]');
+    if (!btn || !calc) return;
+    tileLang = btn.getAttribute('data-lang');
+    writePref(TILE_LANG_KEY, tileLang);
+    retokenizeCalc();
+    renderCalc();
+    renderAll(); // los avatares usan el valor de la ficha
+  });
+
+  calcWords.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-remove-word]');
+    if (!btn || !calc) return;
+    calc.words.splice(Number(btn.getAttribute('data-remove-word')), 1);
+    renderCalc();
+  });
+
+  calcAddWord.addEventListener('click', addCalcWord);
+  calcCancel.addEventListener('click', closeCalc);
+
+  calcApply.addEventListener('click', function () {
+    if (!calc) return;
+    var total = calcGrandTotal();
+    var input = roundForm.querySelector('[data-score="' + calc.playerId + '"]');
+    closeCalc();
+    if (input) {
+      input.value = total;
+      input.focus();
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !calcBackdrop.hidden) closeCalc();
+  });
+
+  // ---------- pantalla siempre encendida (Screen Wake Lock) ----------
+
+  var wakeLockBtn = document.getElementById('wakeLockBtn');
+  var wakeSupported = 'wakeLock' in navigator;
+  var wakeWanted = readPref(WAKE_LOCK_KEY, 'on') !== 'off';
+  var wakeSentinel = null;
+  var wakePending = false;
+
+  function updateWakeBtn() {
+    wakeLockBtn.hidden = !wakeSupported;
+    wakeLockBtn.setAttribute('aria-pressed', String(wakeWanted));
+    wakeLockBtn.title = !wakeWanted
+      ? 'Pantalla siempre encendida: desactivada'
+      : (wakeSentinel ? 'Pantalla siempre encendida: activada' : 'Pantalla siempre encendida: se activará al tocar la página');
+  }
+
+  function acquireWakeLock() {
+    if (!wakeSupported || !wakeWanted || wakeSentinel || wakePending || document.visibilityState !== 'visible') return;
+    wakePending = true;
+    navigator.wakeLock.request('screen').then(function (sentinel) {
+      wakePending = false;
+      if (!wakeWanted) {
+        sentinel.release();
+        return;
+      }
+      wakeSentinel = sentinel;
+      sentinel.addEventListener('release', function () {
+        wakeSentinel = null;
+        updateWakeBtn();
+      });
+      updateWakeBtn();
+    }).catch(function (err) {
+      wakePending = false;
+      console.warn('[WakeLock] No se pudo mantener la pantalla encendida:', err);
+      updateWakeBtn();
+    });
+  }
+
+  function releaseWakeLock() {
+    if (wakeSentinel) wakeSentinel.release();
+    wakeSentinel = null;
+  }
+
+  wakeLockBtn.addEventListener('click', function () {
+    wakeWanted = !wakeWanted;
+    writePref(WAKE_LOCK_KEY, wakeWanted ? 'on' : 'off');
+    if (wakeWanted) acquireWakeLock(); else releaseWakeLock();
+    updateWakeBtn();
+  });
+
+  // El navegador suelta el bloqueo al cambiar de pestaña o bloquear el móvil;
+  // se vuelve a pedir al regresar. Algunos navegadores exigen un toque previo.
+  document.addEventListener('visibilitychange', acquireWakeLock);
+  document.addEventListener('click', acquireWakeLock);
 
   // ---------- render ----------
 
-  function renderAll() {
+  function renderAll(opts) {
     renderPlayers();
-    renderRoundForm();
+    renderRoundForm(opts && opts.resetRound);
     renderScoreboard();
     renderHistory();
+    updateTurnUI();
   }
 
   function boot(initialData) {
@@ -1453,6 +2152,12 @@
     }
     renderAll();
     renderPastGames();
+    if (pendingGames.length > 0) {
+      setCloudStatus(describePending(), true);
+      flushPendingGames().then(renderPastGames);
+    }
+    updateWakeBtn();
+    acquireWakeLock();
   }
 
   try {
