@@ -599,6 +599,81 @@
     .round-row input[type="number"] { width: 64px; min-width: 56px; }
     .player-chip .name { max-width: 84px; }
   }
+
+  /* ---------- Tablet vertical ---------- */
+  @media (min-width: 600px) {
+    /* overflow-x: hidden convierte a body/.app en contenedores de scroll y
+       rompe position: sticky; clip recorta igual sin ese efecto. */
+    body, .app { overflow-x: clip; }
+
+    .app {
+      max-width: 720px;
+      padding: 0 24px 40px;
+      padding-left: max(24px, env(safe-area-inset-left, 0px));
+      padding-right: max(24px, env(safe-area-inset-right, 0px));
+      gap: 20px;
+    }
+
+    section.card { padding: 20px; }
+    h1 { font-size: 22px; }
+    .card-head h2 { font-size: 17px; }
+
+    .round-row { flex-wrap: nowrap; }
+    .round-row input[type="number"] { width: 96px; }
+
+    .player-chip .name { max-width: 160px; }
+
+    .past-games-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* ---------- Tablet horizontal / portátil ---------- */
+  @media (min-width: 900px) {
+    .app {
+      max-width: 1080px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      grid-template-areas:
+        "header  header"
+        "players score"
+        "round   score"
+        "history history"
+        "past    past"
+        "foot    foot";
+      column-gap: 20px;
+      align-items: start;
+      align-content: start;
+    }
+
+    header.top { grid-area: header; }
+    #playersCard { grid-area: players; }
+    #roundCard { grid-area: round; }
+    #scoreboardCard {
+      grid-area: score;
+      position: sticky;
+      top: 84px;
+    }
+    #historyCard { grid-area: history; }
+    #pastGamesCard { grid-area: past; }
+    footer.foot { grid-area: foot; }
+
+    .past-games-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  /* ---------- PC ---------- */
+  @media (min-width: 1200px) {
+    .app {
+      max-width: 1200px;
+      padding-left: max(32px, env(safe-area-inset-left, 0px));
+      padding-right: max(32px, env(safe-area-inset-right, 0px));
+      column-gap: 24px;
+    }
+
+    .score-row .total { font-size: 26px; }
+    .modal { max-width: 420px; }
+  }
 </style>
 </head>
 <body>
@@ -1276,8 +1351,7 @@
 
       return '<div class="past-game" data-game-id="' + game.id + '">' +
         '<div class="past-game-head">' +
-          '<span class="date">' + escapeHtml(formatGameDate(game.finished_at)) + ' · ' + game.rounds_played + (game.rounds_played === 1 ? ' ronda' : ' rondas') + '</span>' +
-          '<button type="button" class="btn-icon danger" data-delete-game="' + game.id + '" aria-label="Eliminar partida guardada">🗑</button>' +
+          '<span class="date">' + escapeHtml(formatGameDate(game.finished_at)) + ' · ' + game.rounds_played + (game.rounds_played === 1 ? ' ronda' : ' rondas') + '</span>'  +
         '</div>' +
         '<div class="past-game-players">' + playersHtml + '</div>' +
         '</div>';
