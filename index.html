@@ -730,6 +730,57 @@
   .past-game-player.winner { border-color: var(--gold); color: var(--gold); }
   .past-game-player .pts { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-weight: 700; }
 
+  /* Menú ⋯ de cada partida anterior */
+  .past-game-menu { position: relative; flex-shrink: 0; }
+  .past-game-menu .btn-icon { width: 32px; height: 32px; font-size: 16px; font-weight: 800; letter-spacing: 0.05em; }
+  .past-game-menu-list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    min-width: 140px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+  }
+  .past-game-menu-list button {
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 12px;
+    min-height: 40px;
+    border-radius: 6px;
+  }
+  .past-game-menu-list button:hover { background: var(--surface-2); }
+  .past-game-menu-list button.danger { color: var(--danger); }
+
+  /* Editar / eliminar partida anterior */
+  .admin-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+  .admin-field input[type="password"] {
+    font-family: inherit;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-height: 44px;
+    font-size: 16px;
+    color: var(--ink);
+    width: 100%;
+  }
+  .admin-players { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+  .admin-player { display: flex; gap: 8px; }
+  .admin-player input[type="text"] { flex: 1; min-width: 0; }
+  .admin-player input[type="number"] { width: 96px; flex-shrink: 0; }
+  .admin-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
+  .admin-error:empty { display: none; }
+  .modal.admin { max-height: calc(100dvh - 32px); overflow-y: auto; }
+
   /* Modal */
   .modal-backdrop {
     position: fixed;
@@ -947,6 +998,23 @@
       <button class="btn btn-danger" id="modalConfirm">Confirmar</button>
     </div>
   </div>
+</div>
+
+<div class="modal-backdrop" id="adminBackdrop" hidden>
+  <form class="modal admin" id="adminForm" role="dialog" aria-modal="true" aria-labelledby="adminTitle" novalidate>
+    <h3 id="adminTitle">Editar partida</h3>
+    <p id="adminMessage"></p>
+    <div class="admin-players" id="adminPlayers"></div>
+    <label class="admin-field">
+      Código
+      <input type="password" id="adminCode" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+    </label>
+    <p class="admin-error" id="adminError" role="alert"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="adminCancel">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="adminSubmit">Guardar</button>
+    </div>
+  </form>
 </div>
 
 <div class="modal-backdrop" id="installBackdrop" hidden>
@@ -1850,7 +1918,10 @@
     }
   }
 
+  var pastGamesData = [];
+
   function renderPastGamesList(games) {
+    pastGamesData = games || [];
     if (!games || games.length === 0) {
       pastGamesList.innerHTML = '<p class="empty-state">Todavía no hay partidas guardadas en la nube.</p>';
       return;
@@ -1868,6 +1939,9 @@
       return '<div class="past-game" data-game-id="' + game.id + '">' +
         '<div class="past-game-head">' +
           '<span class="date">' + escapeHtml(formatGameDate(game.finished_at)) + ' · ' + game.rounds_played + (game.rounds_played === 1 ? ' ronda' : ' rondas') + '</span>'  +
+          '<div class="past-game-menu">' +
+            '<button type="button" class="btn-icon" data-game-menu="' + game.id + '" aria-haspopup="true" aria-expanded="false" aria-label="Opciones de la partida" title="Opciones">⋯</button>' +
+          '</div>' +
         '</div>' +
         '<div class="past-game-players">' + playersHtml + '</div>' +
         '</div>';
@@ -1890,7 +1964,7 @@
 
     supabaseClient
       .from('games')
-      .select('id, finished_at, rounds_played, game_players(name, total_score, bingo_count, rank)')
+      .select('id, finished_at, rounds_played, game_players(id, name, total_score, bingo_count, rank)')
       .order('finished_at', { ascending: false })
       .limit(20)
       .then(function (res) {
@@ -1909,6 +1983,186 @@
 
   refreshPastGamesBtn.addEventListener('click', function () {
     flushPendingGames().then(renderPastGames);
+  });
+
+  // ---------- editar / eliminar partidas anteriores (con código) ----------
+  // El código se comprueba en Supabase (supabase/admin_games.sql); aquí no se guarda.
+
+  var openMenuEl = null;
+
+  function closeGameMenu() {
+    if (!openMenuEl) return;
+    var btn = openMenuEl.parentNode.querySelector('[data-game-menu]');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    openMenuEl.remove();
+    openMenuEl = null;
+  }
+
+  function openGameMenu(btn) {
+    closeGameMenu();
+    var gameId = btn.getAttribute('data-game-menu');
+    var menu = document.createElement('div');
+    menu.className = 'past-game-menu-list';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML =
+      '<button type="button" role="menuitem" data-game-action="edit" data-id="' + gameId + '">✎ Editar</button>' +
+      '<button type="button" role="menuitem" class="danger" data-game-action="delete" data-id="' + gameId + '">🗑 Eliminar</button>';
+    btn.parentNode.appendChild(menu);
+    btn.setAttribute('aria-expanded', 'true');
+    openMenuEl = menu;
+    menu.querySelector('button').focus();
+  }
+
+  pastGamesList.addEventListener('click', function (e) {
+    var menuBtn = e.target.closest('[data-game-menu]');
+    if (menuBtn) {
+      if (openMenuEl && openMenuEl.parentNode === menuBtn.parentNode) closeGameMenu();
+      else openGameMenu(menuBtn);
+      return;
+    }
+    var actionBtn = e.target.closest('[data-game-action]');
+    if (actionBtn) {
+      var action = actionBtn.getAttribute('data-game-action');
+      var id = actionBtn.getAttribute('data-id');
+      closeGameMenu();
+      openAdmin(action, id);
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    if (openMenuEl && !e.target.closest('.past-game-menu')) closeGameMenu();
+  });
+
+  var adminBackdrop = document.getElementById('adminBackdrop');
+  var adminForm = document.getElementById('adminForm');
+  var adminTitle = document.getElementById('adminTitle');
+  var adminMessage = document.getElementById('adminMessage');
+  var adminPlayers = document.getElementById('adminPlayers');
+  var adminCode = document.getElementById('adminCode');
+  var adminError = document.getElementById('adminError');
+  var adminCancel = document.getElementById('adminCancel');
+  var adminSubmit = document.getElementById('adminSubmit');
+  var admin = null; // { action: 'edit' | 'delete', game }
+  var adminReturnFocus = null;
+
+  function openAdmin(action, gameId) {
+    var game = pastGamesData.find(function (g) { return String(g.id) === String(gameId); });
+    if (!game || !supabaseClient) return;
+    admin = { action: action, game: game };
+    adminReturnFocus = document.activeElement;
+    var when = formatGameDate(game.finished_at);
+    var players = (game.game_players || []).slice().sort(function (a, b) { return a.rank - b.rank; });
+
+    adminError.textContent = '';
+    adminCode.value = '';
+    if (action === 'delete') {
+      adminTitle.textContent = 'Eliminar partida';
+      adminMessage.textContent = 'Se eliminará la partida del ' + when + ' (' +
+        players.map(function (p) { return p.name + ' ' + p.total_score; }).join(', ') +
+        ') con todas sus rondas. No se puede deshacer.';
+      adminPlayers.innerHTML = '';
+      adminPlayers.hidden = true;
+      adminSubmit.textContent = 'Eliminar';
+      adminSubmit.className = 'btn btn-danger';
+    } else {
+      adminTitle.textContent = 'Editar partida';
+      adminMessage.textContent = 'Partida del ' + when + '. Cambia nombres o puntos totales; el ganador se recalcula.';
+      adminPlayers.hidden = false;
+      adminPlayers.innerHTML = players.map(function (p) {
+        return '<div class="admin-player">' +
+          '<input type="text" maxlength="40" value="' + escapeHtml(p.name) + '" data-admin-name="' + p.id + '" aria-label="Nombre" />' +
+          '<input type="number" step="1" inputmode="numeric" value="' + p.total_score + '" data-admin-score="' + p.id + '" aria-label="Puntos de ' + escapeHtml(p.name) + '" />' +
+          '</div>';
+      }).join('');
+      adminSubmit.textContent = 'Guardar';
+      adminSubmit.className = 'btn btn-primary';
+    }
+    adminSubmit.disabled = false;
+    adminBackdrop.hidden = false;
+    adminCode.focus();
+  }
+
+  function closeAdmin() {
+    adminBackdrop.hidden = true;
+    admin = null;
+    adminCode.value = '';
+    if (adminReturnFocus && typeof adminReturnFocus.focus === 'function' && document.contains(adminReturnFocus)) adminReturnFocus.focus();
+    adminReturnFocus = null;
+  }
+
+  function adminErrorText(err) {
+    var msg = (err && (err.message || err.details)) || String(err);
+    if (/codigo_invalido/.test(msg)) return 'Código incorrecto.';
+    if (/partida_no_encontrada/.test(msg)) return 'Esa partida ya no existe. Actualiza la lista.';
+    if (/nombre_vacio/.test(msg)) return 'Ningún nombre puede quedar vacío.';
+    if (err && err.code === 'PGRST202') return 'Falta configurar Supabase: ejecuta supabase/admin_games.sql en el SQL Editor.';
+    return 'No se pudo completar: ' + msg;
+  }
+
+  adminForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!admin) return;
+    var code = adminCode.value;
+    if (!code) {
+      adminError.textContent = 'Escribe el código.';
+      adminCode.focus();
+      return;
+    }
+
+    var request;
+    if (admin.action === 'delete') {
+      request = supabaseClient.rpc('admin_delete_game', { p_code: code, p_game_id: admin.game.id });
+    } else {
+      var players = [];
+      var bad = false;
+      (admin.game.game_players || []).forEach(function (p) {
+        var nameInput = adminPlayers.querySelector('[data-admin-name="' + p.id + '"]');
+        var scoreInput = adminPlayers.querySelector('[data-admin-score="' + p.id + '"]');
+        var name = nameInput ? nameInput.value.trim() : p.name;
+        var score = scoreInput ? Number(scoreInput.value) : p.total_score;
+        if (!name || !isFinite(score)) bad = true;
+        players.push({ id: p.id, name: name, total_score: Math.round(score) });
+      });
+      if (bad) {
+        adminError.textContent = 'Revisa los nombres y los puntos.';
+        return;
+      }
+      request = supabaseClient.rpc('admin_update_game', { p_code: code, p_game_id: admin.game.id, p_players: players });
+    }
+
+    adminSubmit.disabled = true;
+    adminError.textContent = '';
+    var wasDelete = admin.action === 'delete';
+    request.then(function (res) {
+      if (res.error) throw res.error;
+      closeAdmin();
+      var okMsg = wasDelete ? 'Partida eliminada.' : 'Partida actualizada.';
+      setCloudStatus(okMsg, false);
+      setTimeout(function () {
+        if (cloudStatusHint.textContent === okMsg) setCloudStatus('');
+      }, 4000);
+      renderPastGames();
+    }).catch(function (err) {
+      console.error('[Supabase] admin ->', err);
+      adminSubmit.disabled = false;
+      adminError.textContent = adminErrorText(err);
+      adminCode.select();
+      adminCode.focus();
+    });
+  });
+
+  adminCancel.addEventListener('click', closeAdmin);
+  adminBackdrop.addEventListener('click', function (e) {
+    if (e.target === adminBackdrop) closeAdmin();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!adminBackdrop.hidden) closeAdmin();
+    else if (openMenuEl) {
+      var btn = openMenuEl.parentNode.querySelector('[data-game-menu]');
+      closeGameMenu();
+      if (btn) btn.focus();
+    }
   });
 
   // ---------- calculadora de palabra ----------
