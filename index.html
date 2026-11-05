@@ -862,6 +862,27 @@
     }
   }
 
+  /* ---------- Partida terminada ---------- */
+  .final-winner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--gold);
+    background: color-mix(in srgb, var(--gold) 14%, transparent);
+  }
+  .final-winner .trophy { font-size: 32px; line-height: 1; }
+  .final-winner .label { font-size: 13px; color: var(--gold); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .final-winner .who { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+  .final-winner .pts { margin-left: auto; font-size: 26px; font-weight: 800; }
+  .app.finished .add-player-row,
+  .app.finished .player-chip .remove,
+  .app.finished #reorderPlayersBtn,
+  .app.finished #playersHint,
+  .app.finished .history .row-actions,
+  .app.finished .turn-tag { display: none !important; }
+
   /* ---------- Tablet horizontal / portátil ---------- */
   @media (min-width: 900px) {
     .app {
@@ -882,7 +903,7 @@
 
     header.top { grid-area: header; }
     #playersCard { grid-area: players; }
-    #roundCard { grid-area: round; }
+    #roundCard, #finalCard { grid-area: round; }
     #scoreboardCard {
       grid-area: score;
       position: sticky;
@@ -910,7 +931,7 @@
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <header class="top">
     <div class="brand">
       <div class="mark">S</div>
@@ -922,6 +943,7 @@
     <div class="top-actions">
       <button class="btn-icon" id="wakeLockBtn" type="button" aria-pressed="false" aria-label="Mantener la pantalla encendida" hidden>🔆</button>
       <button class="btn btn-ghost" id="installBtn" type="button" hidden>📲 Instalar app</button>
+      <button class="btn btn-primary" id="finishGameBtn" type="button" hidden>Terminar partida</button>
       <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
     </div>
   </header>
@@ -941,6 +963,18 @@
     </form>
     <p class="hint" id="playersHint">Añade al menos 2 jugadores para empezar a puntuar.</p>
     <p class="hint" id="reorderHint" hidden>Usa ◀ ▶ para cambiar el orden de turno.</p>
+  </section>
+
+  <section class="card" id="finalCard" hidden>
+    <div class="card-head">
+      <h2>🏁 Partida terminada</h2>
+      <span class="badge" id="finalRoundsBadge"></span>
+    </div>
+    <div class="final-winner" id="finalWinner"></div>
+    <p class="hint" id="finalHint"></p>
+    <div class="round-actions">
+      <button class="btn btn-primary" id="finalNewGameBtn" type="button">Empezar nueva partida</button>
+    </div>
   </section>
 
   <section class="card" id="roundCard">
@@ -986,7 +1020,7 @@
     </div>
   </section>
 
-  <footer class="foot">Tus puntos se guardan automáticamente en este dispositivo. Al iniciar una partida nueva, la partida actual se archiva en la nube.</footer>
+  <footer class="foot">Tus puntos se guardan automáticamente en este dispositivo. Al terminar la partida (o al iniciar una nueva) se archiva en la nube.</footer>
 </div>
 
 <div class="modal-backdrop" id="modalBackdrop" hidden>
@@ -1587,8 +1621,8 @@
 
     var draft = resetDraft ? {} : readRoundDraft();
     var enoughPlayers = state.players.length >= 2;
-    roundCard.hidden = !enoughPlayers;
-    if (!enoughPlayers) {
+    roundCard.hidden = !enoughPlayers || !!state.finished;
+    if (!enoughPlayers || state.finished) {
       roundForm.innerHTML = '';
       return;
     }
@@ -1655,9 +1689,11 @@
     var num = currentRoundNumber();
     var enoughPlayers = state.players.length >= 2;
     var idx = turnIndex();
-    var current = enoughPlayers ? state.players[idx] : null;
+    var current = enoughPlayers && !state.finished ? state.players[idx] : null;
 
-    roundTagline.textContent = 'Ronda ' + num + (current ? ' · Turno de ' + current.name : '');
+    roundTagline.textContent = state.finished
+      ? 'Partida terminada · ' + state.rounds.length + (state.rounds.length === 1 ? ' ronda' : ' rondas')
+      : 'Ronda ' + num + (current ? ' · Turno de ' + current.name : '');
     nextTurnBtn.hidden = !current || idx === state.players.length - 1;
 
     roundForm.querySelectorAll('[data-row-player]').forEach(function (row) {
@@ -1866,29 +1902,106 @@
   // ---------- new game ----------
 
   var newGameBtn = document.getElementById('newGameBtn');
+  var finishGameBtn = document.getElementById('finishGameBtn');
+  var finalCard = document.getElementById('finalCard');
+  var finalWinner = document.getElementById('finalWinner');
+  var finalHint = document.getElementById('finalHint');
+  var finalRoundsBadge = document.getElementById('finalRoundsBadge');
+  var finalNewGameBtn = document.getElementById('finalNewGameBtn');
+  var appEl = document.getElementById('app');
 
-  newGameBtn.addEventListener('click', function () {
+  function resetGame() {
+    state = defaultState();
+    editingRoundId = null;
+    reorderMode = false;
+    saveState();
+    renderAll({ resetRound: true });
+    renderPastGames();
+  }
+
+  function setArchiveBusy(busy) {
+    newGameBtn.disabled = busy;
+    finishGameBtn.disabled = busy;
+    finalNewGameBtn.disabled = busy;
+  }
+
+  function archiveFailedMessage() {
+    setCloudStatus('No se pudo archivar la partida y este dispositivo no permite guardarla localmente. La partida actual NO se ha borrado; inténtalo de nuevo con conexión.', true);
+  }
+
+  function startNewGame() {
+    // Una partida terminada ya está archivada: solo hay que limpiarla.
+    if (state.finished) {
+      openConfirm(
+        'Nueva partida',
+        'La partida terminada ya está guardada. Se limpiará el marcador para empezar otra.',
+        resetGame
+      );
+      return;
+    }
     openConfirm(
       'Nueva partida',
       'Se borrarán los jugadores, rondas y puntuaciones de la partida actual. Antes se archivará en la nube; si no hay conexión, se guarda en este dispositivo y se sube más tarde.',
       function () {
-        newGameBtn.disabled = true;
+        setArchiveBusy(true);
         archiveCurrentGame().then(function (safe) {
-          newGameBtn.disabled = false;
-          if (!safe) {
-            setCloudStatus('No se pudo archivar la partida y este dispositivo no permite guardarla localmente. La partida actual NO se ha borrado; inténtalo de nuevo con conexión.', true);
-            return;
-          }
-          state = defaultState();
+          setArchiveBusy(false);
+          if (!safe) { archiveFailedMessage(); return; }
+          resetGame();
+        });
+      }
+    );
+  }
+
+  newGameBtn.addEventListener('click', startNewGame);
+  finalNewGameBtn.addEventListener('click', startNewGame);
+
+  finishGameBtn.addEventListener('click', function () {
+    openConfirm(
+      'Terminar partida',
+      'Se guardará la partida en la nube y se mostrará el resultado final. Después ya no se podrán añadir ni editar rondas.',
+      function () {
+        setArchiveBusy(true);
+        archiveCurrentGame().then(function (safe) {
+          setArchiveBusy(false);
+          if (!safe) { archiveFailedMessage(); return; }
+          state.finished = true;
+          state.finishedAt = new Date().toISOString();
           editingRoundId = null;
           reorderMode = false;
           saveState();
-          renderAll({ resetRound: true });
+          renderAll();
           renderPastGames();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
     );
   });
+
+  function renderFinal() {
+    var finished = !!state.finished;
+    appEl.classList.toggle('finished', finished);
+    finalCard.hidden = !finished;
+    finishGameBtn.hidden = finished || state.rounds.length === 0 || state.players.length === 0;
+    if (!finished) return;
+
+    var totals = totalsByPlayer();
+    var max = Math.max.apply(null, state.players.map(function (p) { return totals[p.id]; }).concat([0]));
+    var winners = state.players.filter(function (p) { return totals[p.id] === max; });
+    var isTie = winners.length > 1;
+
+    finalRoundsBadge.textContent = state.rounds.length + (state.rounds.length === 1 ? ' ronda' : ' rondas');
+    finalWinner.innerHTML =
+      '<span class="trophy" aria-hidden="true">🏆</span>' +
+      '<div>' +
+        '<div class="label">' + (isTie ? 'Empate' : 'Ganador') + '</div>' +
+        '<div class="who">' + winners.map(function (p) { return escapeHtml(p.name); }).join(' y ') + '</div>' +
+      '</div>' +
+      '<span class="pts">' + max + '</span>';
+    finalHint.textContent = supabaseClient
+      ? 'La partida está guardada en "Partidas anteriores".'
+      : 'La partida está guardada en este dispositivo.';
+  }
 
   // ---------- past games (historial en la nube) ----------
 
@@ -2530,6 +2643,7 @@
     renderRoundForm(opts && opts.resetRound);
     renderScoreboard();
     renderHistory();
+    renderFinal();
     updateTurnUI();
   }
 
