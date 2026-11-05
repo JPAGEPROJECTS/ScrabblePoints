@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Marcador Scrabble</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f7a4f">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scrabble">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -477,6 +485,9 @@
   .player-chip.reordering { padding-left: 6px; }
   .player-chip .pos { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
 
+  /* Instalar app */
+  .install-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.45; }
+
   /* Calculadora de palabra */
   .modal.calc { max-width: 440px; max-height: calc(100dvh - 32px); overflow-y: auto; }
   .calc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
@@ -850,6 +861,7 @@
     </div>
     <div class="top-actions">
       <button class="btn-icon" id="wakeLockBtn" type="button" aria-pressed="false" aria-label="Mantener la pantalla encendida" hidden>🔆</button>
+      <button class="btn btn-ghost" id="installBtn" type="button" hidden>📲 Instalar app</button>
       <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
     </div>
   </header>
@@ -924,6 +936,21 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="modalCancel">Cancelar</button>
       <button class="btn btn-danger" id="modalConfirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="installBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <h3 id="installTitle">Instalar en el iPhone</h3>
+    <ol class="install-steps">
+      <li>Toca el botón <strong>Compartir</strong> <span aria-hidden="true">(el cuadrado con la flecha ↑)</span> en la barra de Safari.</li>
+      <li>Elige <strong>Añadir a pantalla de inicio</strong>.</li>
+      <li>Pulsa <strong>Añadir</strong>. La app aparecerá con su icono junto a las demás.</li>
+    </ol>
+    <p class="hint" id="installIosNote" hidden>Esto solo funciona desde Safari. Si estás en otro navegador, abre esta página en Safari primero.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" id="installClose">Entendido</button>
     </div>
   </div>
 </div>
@@ -2159,6 +2186,73 @@
     updateWakeBtn();
     acquireWakeLock();
   }
+
+  // ---------- instalar como app ----------
+
+  var installBtn = document.getElementById('installBtn');
+  var installBackdrop = document.getElementById('installBackdrop');
+  var installClose = document.getElementById('installClose');
+  var installIosNote = document.getElementById('installIosNote');
+  var deferredInstall = null;
+  var installReturnFocus = null;
+
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  }
+  var ua = window.navigator.userAgent || '';
+  var isIos = /iPad|iPhone|iPod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+  var isIosSafari = isIos && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+
+  function updateInstallBtn() {
+    // En iOS no hay aviso automático: se muestran instrucciones para "Añadir a pantalla de inicio".
+    installBtn.hidden = isStandalone() || !(deferredInstall || isIos);
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    updateInstallBtn();
+  });
+
+  window.addEventListener('appinstalled', function () {
+    deferredInstall = null;
+    updateInstallBtn();
+  });
+
+  function closeInstallHelp() {
+    installBackdrop.hidden = true;
+    if (installReturnFocus && typeof installReturnFocus.focus === 'function') installReturnFocus.focus();
+    installReturnFocus = null;
+  }
+
+  installBtn.addEventListener('click', function () {
+    if (deferredInstall) {
+      var prompt = deferredInstall;
+      deferredInstall = null;
+      prompt.prompt();
+      prompt.userChoice.finally(updateInstallBtn);
+      return;
+    }
+    installIosNote.hidden = isIosSafari;
+    installReturnFocus = document.activeElement;
+    installBackdrop.hidden = false;
+    installClose.focus();
+  });
+
+  installClose.addEventListener('click', closeInstallHelp);
+  installBackdrop.addEventListener('click', function (e) {
+    if (e.target === installBackdrop) closeInstallHelp();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !installBackdrop.hidden) closeInstallHelp();
+  });
+
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+  updateInstallBtn();
 
   try {
     if (window.claude && window.claude.hot) {
