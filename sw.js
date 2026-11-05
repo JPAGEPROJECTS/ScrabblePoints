@@ -1,6 +1,9 @@
 // Service worker: permite instalar la app y abrirla sin conexión.
-// Estrategia "red primero": siempre intenta la versión más nueva y usa la caché si no hay internet.
-var CACHE = 'marcador-scrabble-v1';
+// App: "red primero" (siempre intenta la versión más nueva y usa la caché si no hay internet).
+// Diccionario (dict/): "caché primero" en una caché aparte; las listas no cambian, así que cada
+// trozo se descarga una sola vez. Si se cambian las listas, sube DICT_CACHE a la siguiente versión.
+var CACHE = 'marcador-scrabble-v2';
+var DICT_CACHE = 'marcador-dict-v1';
 var ASSETS = [
   './',
   './index.html',
@@ -20,7 +23,7 @@ self.addEventListener('install', function (event) {
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+      return Promise.all(keys.filter(function (k) { return k !== CACHE && k !== DICT_CACHE; }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
@@ -31,6 +34,21 @@ self.addEventListener('fetch', function (event) {
   var url = new URL(req.url);
   // Solo archivos propios; Supabase, fuentes y CDN van directos a la red.
   if (url.origin !== self.location.origin) return;
+
+  if (url.pathname.indexOf('/dict/') !== -1) {
+    event.respondWith(
+      caches.open(DICT_CACHE).then(function (cache) {
+        return cache.match(req).then(function (hit) {
+          if (hit) return hit;
+          return fetch(req).then(function (res) {
+            if (res && (res.ok || res.status === 404)) cache.put(req, res.clone());
+            return res;
+          });
+        });
+      })
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(req).then(function (res) {
