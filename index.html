@@ -876,6 +876,33 @@
   .final-winner .label { font-size: 13px; color: var(--gold); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
   .final-winner .who { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
   .final-winner .pts { margin-left: auto; font-size: 26px; font-weight: 800; }
+  /* Partida compartida */
+  .live-code {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .live-code .label { font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+  .live-code strong {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: var(--accent-strong);
+    user-select: all;
+  }
+  #liveJoinCode { text-transform: uppercase; letter-spacing: 0.12em; }
+  #liveJoinCode::placeholder { text-transform: none; letter-spacing: normal; }
+  .badge.live-ok { color: var(--accent-strong); border-color: var(--accent); }
+  .badge.live-warn { color: var(--danger); border-color: var(--danger); }
+  .live-off-actions { display: flex; flex-direction: column; gap: 10px; }
+  .live-off-actions > .btn { align-self: flex-start; }
+
   .app.finished .add-player-row,
   .app.finished .player-chip .remove,
   .app.finished #reorderPlayersBtn,
@@ -891,6 +918,7 @@
       grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
       grid-template-areas:
         "header  header"
+        "live    score"
         "players score"
         "round   score"
         "history history"
@@ -902,6 +930,7 @@
     }
 
     header.top { grid-area: header; }
+    #liveCard { grid-area: live; }
     #playersCard { grid-area: players; }
     #roundCard, #finalCard { grid-area: round; }
     #scoreboardCard {
@@ -947,6 +976,33 @@
       <button class="btn btn-ghost" id="newGameBtn">Nueva partida</button>
     </div>
   </header>
+
+  <section class="card" id="liveCard" hidden>
+    <div class="card-head">
+      <h2>📡 Partida compartida</h2>
+      <span class="badge" id="liveBadge">Solo este teléfono</span>
+    </div>
+    <div id="liveOff" class="live-off-actions">
+      <p class="hint" style="margin:0;">Compártela para que todos vean el marcador y puedan apuntar desde su teléfono.</p>
+      <button class="btn btn-primary" id="liveCreateBtn" type="button">Compartir esta partida</button>
+      <form class="add-player-row" id="liveJoinForm" novalidate>
+        <input type="text" id="liveJoinCode" placeholder="Código para unirse" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" aria-label="Código de la partida" />
+        <button type="submit" class="btn btn-ghost" id="liveJoinBtn">Unirse</button>
+      </form>
+    </div>
+    <div id="liveOn" hidden>
+      <div class="live-code">
+        <span class="label">Código</span>
+        <strong id="liveCodeText"></strong>
+      </div>
+      <p class="hint" id="liveStatus" aria-live="polite"></p>
+      <div class="round-actions">
+        <button class="btn btn-ghost" id="liveLeaveBtn" type="button">Salir</button>
+        <button class="btn btn-primary" id="liveShareBtn" type="button">Invitar</button>
+      </div>
+    </div>
+    <p class="admin-error" id="liveError" role="alert" style="margin:10px 0 0;"></p>
+  </section>
 
   <section class="card" id="playersCard">
     <div class="card-head">
@@ -1020,7 +1076,7 @@
     </div>
   </section>
 
-  <footer class="foot">Tus puntos se guardan automáticamente en este dispositivo. Al terminar la partida (o al iniciar una nueva) se archiva en la nube.</footer>
+  <footer class="foot">Tus puntos se guardan automáticamente en este dispositivo; si compartes la partida, también en la nube para todos los que se unan. Al terminar la partida (o al iniciar una nueva) se archiva en "Partidas anteriores".</footer>
 </div>
 
 <div class="modal-backdrop" id="modalBackdrop" hidden>
@@ -1191,6 +1247,101 @@
 
   var state = loadState();
   var editingRoundId = null;
+
+  function cloneState(s) {
+    return JSON.parse(JSON.stringify(s));
+  }
+
+  // ---------- acciones ----------
+  // Cada cambio de la partida es una "op" (datos, no código) que se aplica con
+  // applyOp. Así, en una partida compartida, si otro teléfono guardó a la vez,
+  // se toma su versión y se vuelven a aplicar encima las ops propias pendientes.
+  // Las ops usan ids, no posiciones, para que reaplicarlas sea seguro.
+  function applyOp(s, op) {
+    if (op.t === 'reset') return defaultState();
+    // Una partida terminada ya está archivada: no se modifica.
+    if (s.finished) return s;
+
+    var player, idx;
+    switch (op.t) {
+      case 'addPlayer':
+        if (s.players.some(function (p) { return p.id === op.id; })) break;
+        s.players.push({ id: op.id, name: op.name });
+        break;
+
+      case 'removePlayer':
+        idx = s.players.findIndex(function (p) { return p.id === op.playerId; });
+        if (idx === -1) break;
+        s.players.splice(idx, 1);
+        if (s.turnPlayerId === op.playerId) {
+          var nextTurn = s.players[idx] || s.players[0];
+          s.turnPlayerId = nextTurn ? nextTurn.id : null;
+        }
+        s.rounds.forEach(function (r) { delete r.entries[op.playerId]; });
+        s.rounds = s.rounds.filter(function (r) { return Object.keys(r.entries).length > 0; });
+        break;
+
+      case 'movePlayer':
+        idx = s.players.findIndex(function (p) { return p.id === op.playerId; });
+        var target = idx + op.delta;
+        if (idx === -1 || target < 0 || target >= s.players.length) break;
+        player = s.players.splice(idx, 1)[0];
+        s.players.splice(target, 0, player);
+        break;
+
+      case 'setTurn':
+        if (s.players.some(function (p) { return p.id === op.playerId; })) s.turnPlayerId = op.playerId;
+        break;
+
+      case 'commitRound':
+        if (s.rounds.some(function (r) { return r.id === op.id; })) break;
+        var entries = {};
+        s.players.forEach(function (p) {
+          if (op.entries[p.id] !== undefined) entries[p.id] = op.entries[p.id];
+        });
+        if (Object.keys(entries).length === 0) break;
+        s.rounds.push({ id: op.id, entries: entries });
+        // Cada ronda nueva la empieza el primer jugador del orden.
+        s.turnPlayerId = s.players[0] ? s.players[0].id : null;
+        break;
+
+      case 'deleteRound':
+        s.rounds = s.rounds.filter(function (r) { return r.id !== op.roundId; });
+        break;
+
+      case 'editRound':
+        var round = s.rounds.find(function (r) { return r.id === op.roundId; });
+        if (!round) break;
+        Object.keys(op.entries).forEach(function (pid) {
+          if (round.entries[pid] !== undefined) round.entries[pid] = op.entries[pid];
+        });
+        break;
+
+      case 'finish':
+        s.finished = true;
+        s.finishedAt = op.at;
+        break;
+    }
+    return s;
+  }
+
+  // Aplica una acción del usuario: en local directamente; en una partida
+  // compartida se encola y se envía a la nube.
+  function dispatch(op, renderOpts) {
+    if (live) {
+      live.ops.push(op);
+      recomputeLiveState();
+      saveLive();
+    } else {
+      state = applyOp(state, op);
+    }
+    saveState();
+    renderAll(renderOpts);
+    if (live) {
+      renderLive();
+      pushLive();
+    }
+  }
 
   // ---------- helpers ----------
 
@@ -1485,9 +1636,7 @@
   function addPlayer(name) {
     var trimmed = name.trim();
     if (!trimmed) return;
-    state.players.push({ id: uid(), name: trimmed.slice(0, 20) });
-    saveState();
-    renderAll();
+    dispatch({ t: 'addPlayer', id: uid(), name: trimmed.slice(0, 20) });
   }
 
   function removePlayer(playerId) {
@@ -1497,16 +1646,7 @@
       'Quitar a ' + player.name,
       'Se eliminarán también sus puntos registrados en todas las rondas. Esta acción no se puede deshacer.',
       function () {
-        var removedIdx = state.players.indexOf(player);
-        state.players = state.players.filter(function (p) { return p.id !== playerId; });
-        if (state.turnPlayerId === playerId) {
-          var next = state.players[removedIdx] || state.players[0];
-          state.turnPlayerId = next ? next.id : null;
-        }
-        state.rounds.forEach(function (r) { delete r.entries[playerId]; });
-        state.rounds = state.rounds.filter(function (r) { return Object.keys(r.entries).length > 0; });
-        saveState();
-        renderAll();
+        dispatch({ t: 'removePlayer', playerId: playerId });
       }
     );
   }
@@ -1526,10 +1666,7 @@
     var idx = state.players.findIndex(function (p) { return p.id === playerId; });
     var target = idx + delta;
     if (idx === -1 || target < 0 || target >= state.players.length) return;
-    var moved = state.players.splice(idx, 1)[0];
-    state.players.splice(target, 0, moved);
-    saveState();
-    renderAll();
+    dispatch({ t: 'movePlayer', playerId: playerId, delta: delta });
 
     // Mantener el foco en la flecha para poder seguir moviendo con teclado.
     var btn = playersList.querySelector('[data-move="' + playerId + '"][data-dir="' + delta + '"]');
@@ -1676,8 +1813,17 @@
   }
 
   function setTurn(playerId, focusInput) {
-    state.turnPlayerId = playerId;
-    saveState();
+    if (state.turnPlayerId !== playerId) {
+      if (live) {
+        live.ops.push({ t: 'setTurn', playerId: playerId });
+        recomputeLiveState();
+        saveLive();
+        pushLive();
+      } else {
+        state = applyOp(state, { t: 'setTurn', playerId: playerId });
+      }
+      saveState();
+    }
     updateTurnUI();
     if (focusInput) {
       var input = roundForm.querySelector('[data-score="' + playerId + '"]');
@@ -1724,11 +1870,7 @@
   }
 
   function commitRound(entries) {
-    state.rounds.push({ id: uid(), entries: entries });
-    // Cada ronda nueva la empieza el primer jugador del orden.
-    state.turnPlayerId = state.players[0] ? state.players[0].id : null;
-    saveState();
-    renderAll({ resetRound: true });
+    dispatch({ t: 'commitRound', id: uid(), entries: entries }, { resetRound: true });
   }
 
   saveRoundBtn.addEventListener('click', function () {
@@ -1796,10 +1938,8 @@
       'Eliminar ronda',
       'Se eliminará esta ronda del historial y se recalcularán los totales.',
       function () {
-        state.rounds = state.rounds.filter(function (r) { return r.id !== roundId; });
         if (editingRoundId === roundId) editingRoundId = null;
-        saveState();
-        renderAll();
+        dispatch({ t: 'deleteRound', roundId: roundId });
       }
     );
   }
@@ -1827,10 +1967,8 @@
         bingo: bingoInput ? bingoInput.checked : false
       };
     });
-    round.entries = newEntries;
     editingRoundId = null;
-    saveState();
-    renderAll();
+    dispatch({ t: 'editRound', roundId: roundId, entries: newEntries });
   }
 
   function renderHistory() {
@@ -1911,11 +2049,9 @@
   var appEl = document.getElementById('app');
 
   function resetGame() {
-    state = defaultState();
     editingRoundId = null;
     reorderMode = false;
-    saveState();
-    renderAll({ resetRound: true });
+    dispatch({ t: 'reset' }, { resetRound: true });
     renderPastGames();
   }
 
@@ -1941,12 +2077,18 @@
     }
     openConfirm(
       'Nueva partida',
-      'Se borrarán los jugadores, rondas y puntuaciones de la partida actual. Antes se archivará en la nube; si no hay conexión, se guarda en este dispositivo y se sube más tarde.',
+      live
+        ? 'Se archivará la partida actual en la nube y se empezará otra con el mismo código, para todos los que están unidos.'
+        : 'Se borrarán los jugadores, rondas y puntuaciones de la partida actual. Antes se archivará en la nube; si no hay conexión, se guarda en este dispositivo y se sube más tarde.',
       function () {
         setArchiveBusy(true);
-        archiveCurrentGame().then(function (safe) {
+        var archive = live ? liveFinish() : archiveCurrentGame();
+        archive.then(function (safe) {
           setArchiveBusy(false);
-          if (!safe) { archiveFailedMessage(); return; }
+          if (!safe) {
+            if (!live) archiveFailedMessage();
+            return;
+          }
           resetGame();
         });
       }
@@ -1962,16 +2104,23 @@
       'Se guardará la partida en la nube y se mostrará el resultado final. Después ya no se podrán añadir ni editar rondas.',
       function () {
         setArchiveBusy(true);
-        archiveCurrentGame().then(function (safe) {
+        var archive = live ? liveFinish() : archiveCurrentGame();
+        archive.then(function (safe) {
           setArchiveBusy(false);
-          if (!safe) { archiveFailedMessage(); return; }
-          state.finished = true;
-          state.finishedAt = new Date().toISOString();
+          if (!safe) {
+            if (!live) archiveFailedMessage();
+            return;
+          }
           editingRoundId = null;
           reorderMode = false;
-          saveState();
-          renderAll();
-          renderPastGames();
+          // En una partida compartida liveFinish ya la ha marcado como terminada
+          // (y al recibirla se recarga el historial).
+          if (!live) {
+            dispatch({ t: 'finish', at: new Date().toISOString() });
+            renderPastGames();
+          } else {
+            renderAll();
+          }
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
@@ -2638,21 +2787,486 @@
 
   // ---------- render ----------
 
+  // ---------- partida compartida (varios teléfonos) ----------
+  // Solo usa funciones RPC de supabase/live_games.sql (nada de Realtime): cada
+  // pocos segundos se pregunta por la versión y solo se descarga la partida si
+  // ha cambiado. Ver supabase/live_games.sql.
+  //
+  // live = { code, base, version, ops }
+  //   base/version: última partida confirmada por el servidor.
+  //   ops: acciones de este teléfono todavía no confirmadas (se guardan en el
+  //        dispositivo y sobreviven a recargas y cortes de conexión).
+  //   state = base + ops.
+
+  var LIVE_KEY = 'scrabble-live-v1';
+  var LIVE_LAST_CODE_KEY = 'scrabble-live-last-code';
+  var LIVE_POLL_MS = 3000;
+  var CODE_RE = /^[A-Z0-9]{6}$/;
+
+  var live = loadLive();
+  var livePushing = null;
+  var livePolling = false;
+  var liveOnline = true;
+  var liveMissing = false;
+
+  var liveCard = document.getElementById('liveCard');
+  var liveBadge = document.getElementById('liveBadge');
+  var liveOff = document.getElementById('liveOff');
+  var liveOn = document.getElementById('liveOn');
+  var liveCodeText = document.getElementById('liveCodeText');
+  var liveStatus = document.getElementById('liveStatus');
+  var liveError = document.getElementById('liveError');
+  var liveCreateBtn = document.getElementById('liveCreateBtn');
+  var liveJoinForm = document.getElementById('liveJoinForm');
+  var liveJoinCode = document.getElementById('liveJoinCode');
+  var liveJoinBtn = document.getElementById('liveJoinBtn');
+  var liveShareBtn = document.getElementById('liveShareBtn');
+  var liveLeaveBtn = document.getElementById('liveLeaveBtn');
+
+  function loadLive() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null');
+      if (parsed && typeof parsed.code === 'string' && parsed.base && Array.isArray(parsed.base.players) &&
+          Array.isArray(parsed.base.rounds) && typeof parsed.version === 'number' && Array.isArray(parsed.ops)) {
+        return parsed;
+      }
+    } catch (e) { /* sin almacenamiento */ }
+    return null;
+  }
+
+  function saveLive() {
+    try {
+      if (live) localStorage.setItem(LIVE_KEY, JSON.stringify(live));
+      else localStorage.removeItem(LIVE_KEY);
+    } catch (e) { /* sin almacenamiento: la partida sigue en memoria */ }
+  }
+
+  function normalizeCode(str) {
+    return String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  }
+
+  function liveRpc(name, args) {
+    return supabaseClient.rpc(name, args).then(function (res) {
+      if (res.error) throw res.error;
+      return res.data;
+    });
+  }
+
+  function isMissingFnError(err) {
+    return err && err.code === 'PGRST202';
+  }
+
+  function liveErrorText(err) {
+    if (isMissingFnError(err)) return 'Falta configurar Supabase: ejecuta supabase/live_games.sql en el SQL Editor.';
+    var msg = err && err.message ? err.message : '';
+    if (msg.indexOf('demasiadas_partidas') !== -1) return 'Hay demasiadas partidas compartidas abiertas. Inténtalo más tarde.';
+    if (msg.indexOf('estado_demasiado_grande') !== -1) return 'La partida es demasiado grande para compartirla.';
+    return 'No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.';
+  }
+
+  function recomputeLiveState() {
+    var s = cloneState(live.base);
+    live.ops.forEach(function (op) { s = applyOp(s, op); });
+    state = s;
+  }
+
+  function setLiveError(message) {
+    liveError.textContent = message || '';
+  }
+
+  function renderLive() {
+    liveCard.hidden = !supabaseClient;
+    if (!supabaseClient) return;
+
+    liveOff.hidden = !!live;
+    liveOn.hidden = !live;
+    liveBadge.classList.remove('live-ok', 'live-warn');
+
+    if (!live) {
+      liveBadge.textContent = 'Solo este teléfono';
+      return;
+    }
+
+    liveCodeText.textContent = live.code;
+    var pending = live.ops.length;
+    if (liveMissing) {
+      liveBadge.textContent = 'No encontrada';
+      liveBadge.classList.add('live-warn');
+      liveStatus.textContent = 'Esta partida ya no existe en la nube (se borran tras 30 días sin uso). Sal y crea otra.';
+    } else if (!liveOnline) {
+      liveBadge.textContent = 'Sin conexión';
+      liveBadge.classList.add('live-warn');
+      liveStatus.textContent = pending
+        ? 'Sin conexión: ' + pending + (pending === 1 ? ' cambio pendiente' : ' cambios pendientes') + '. Se enviarán al volver la conexión.'
+        : 'Sin conexión: no verás los cambios de los demás hasta que vuelva.';
+    } else if (pending) {
+      liveBadge.textContent = 'Guardando…';
+      liveStatus.textContent = 'Enviando cambios…';
+    } else {
+      liveBadge.textContent = 'Conectado';
+      liveBadge.classList.add('live-ok');
+      liveStatus.textContent = 'Comparte el código o el enlace con los demás. Los cambios de cualquiera se ven en todos los teléfonos en pocos segundos.';
+    }
+  }
+
+  // Vuelve a pintar tras recibir cambios de otro teléfono sin perder lo que se
+  // está escribiendo: conserva el foco y, si alguien está editando una ronda
+  // del historial, no le borra los campos.
+  function renderAfterSync(prev) {
+    if (JSON.stringify(prev) === JSON.stringify(state)) return;
+
+    var prevRoundIds = {};
+    prev.rounds.forEach(function (r) { prevRoundIds[r.id] = true; });
+    var newRound = state.rounds.some(function (r) { return !prevRoundIds[r.id]; });
+    var wasReset = (prev.finished && !state.finished) ||
+      (prev.rounds.length > 0 && state.rounds.length === 0 && state.players.length === 0);
+    if (wasReset) { editingRoundId = null; reorderMode = false; }
+    if (editingRoundId && !state.rounds.some(function (r) { return r.id === editingRoundId; })) editingRoundId = null;
+
+    var active = document.activeElement;
+    var activeId = active && active.id && roundForm.contains(active) ? active.id : null;
+    var selStart = null;
+    var selEnd = null;
+    try {
+      if (activeId) { selStart = active.selectionStart; selEnd = active.selectionEnd; }
+    } catch (e) { /* type=number no tiene selección */ }
+
+    saveState();
+    renderAll({ resetRound: newRound || wasReset, keepHistory: !!editingRoundId });
+
+    if (activeId) {
+      var again = document.getElementById(activeId);
+      if (again) {
+        again.focus();
+        try { if (selStart !== null) again.setSelectionRange(selStart, selEnd); } catch (e) { /* nada */ }
+      }
+    }
+    if (!prev.finished && state.finished) renderPastGames();
+  }
+
+  // Acepta una versión del servidor (solo si es más nueva que la que ya hay).
+  function acceptServer(serverState, version) {
+    if (!live || version < live.version) return;
+    var prev = state;
+    live.base = serverState;
+    live.version = version;
+    recomputeLiveState();
+    saveLive();
+    renderAfterSync(prev);
+  }
+
+  function markOnline(ok) {
+    if (liveOnline !== ok) {
+      liveOnline = ok;
+    }
+    renderLive();
+  }
+
+  function handleLiveError(err) {
+    console.warn('[Supabase] Partida compartida:', err);
+    if (err && err.code === 'P0002') {
+      liveMissing = true;
+      renderLive();
+      return;
+    }
+    if (isMissingFnError(err)) setLiveError(liveErrorText(err));
+    markOnline(false);
+  }
+
+  // Envía las ops pendientes. Si otro teléfono guardó antes, toma su versión,
+  // reaplica encima las ops propias y vuelve a intentarlo. Nunca falla.
+  function pushLive(attempt) {
+    if (!live || !supabaseClient || liveMissing || live.ops.length === 0) return Promise.resolve();
+    if (livePushing) return livePushing;
+
+    attempt = attempt || 0;
+    var code = live.code;
+    var sentCount = live.ops.length;
+    var sentState = cloneState(live.base);
+    live.ops.slice(0, sentCount).forEach(function (op) { sentState = applyOp(sentState, op); });
+    var again = false;
+
+    livePushing = liveRpc('live_save', { p_code: code, p_state: sentState, p_expected_version: live.version })
+      .then(function (res) {
+        if (!live || live.code !== code) return;
+        var prev = state;
+        if (res.ok) {
+          live.base = sentState;
+          live.version = res.version;
+          live.ops.splice(0, sentCount);
+        } else {
+          // Choque: otro teléfono guardó antes. Nos quedamos con su versión y
+          // las ops propias se reaplican encima en el siguiente intento.
+          live.base = res.state;
+          live.version = res.version;
+        }
+        recomputeLiveState();
+        saveLive();
+        renderAfterSync(prev);
+        markOnline(true);
+        again = live.ops.length > 0;
+      })
+      .catch(handleLiveError)
+      .then(function () {
+        livePushing = null;
+        renderLive();
+        if (again && attempt < 5) return pushLive(attempt + 1);
+      });
+    return livePushing;
+  }
+
+  function pollLive() {
+    if (!live || !supabaseClient || liveMissing || livePolling || livePushing || document.hidden) return;
+    livePolling = true;
+    var code = live.code;
+
+    liveRpc('live_version', { p_code: code })
+      .then(function (version) {
+        if (!live || live.code !== code) return;
+        if (version === null || version === undefined) {
+          liveMissing = true;
+          return;
+        }
+        markOnline(true);
+        if (version !== live.version) {
+          return liveRpc('live_get', { p_code: code }).then(function (game) {
+            if (!game) { liveMissing = true; return; }
+            acceptServer(game.state, game.version);
+          });
+        }
+      })
+      .catch(handleLiveError)
+      .then(function () {
+        livePolling = false;
+        renderLive();
+        if (live && live.ops.length > 0) pushLive();
+      });
+  }
+
+  setInterval(pollLive, LIVE_POLL_MS);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) pollLive();
+  });
+  window.addEventListener('online', function () {
+    pushLive().then(pollLive);
+  });
+
+  function startLive(code, serverState, version) {
+    live = { code: code, base: serverState, version: version, ops: [] };
+    liveMissing = false;
+    liveOnline = true;
+    editingRoundId = null;
+    reorderMode = false;
+    recomputeLiveState();
+    saveLive();
+    saveState();
+    writePref(LIVE_LAST_CODE_KEY, code);
+    setLiveError('');
+    renderAll({ resetRound: true });
+    renderLive();
+  }
+
+  function createLive() {
+    setLiveError('');
+    liveCreateBtn.disabled = true;
+    var snapshot = cloneState(state);
+    liveRpc('live_create', { p_state: snapshot })
+      .then(function (res) {
+        startLive(res.code, snapshot, res.version);
+        shareLive();
+      })
+      .catch(function (err) {
+        console.error('[Supabase] No se pudo crear la partida compartida:', err);
+        setLiveError(liveErrorText(err));
+      })
+      .then(function () { liveCreateBtn.disabled = false; });
+  }
+
+  function joinLive(rawCode) {
+    var code = normalizeCode(rawCode);
+    if (!CODE_RE.test(code)) {
+      setLiveError('El código tiene 6 letras o números.');
+      return;
+    }
+    if (live && live.code === code) return;
+
+    var hasLocalGame = !live && (state.players.length > 0 || state.rounds.length > 0) && !state.finished;
+    var doJoin = function () {
+      setLiveError('');
+      liveJoinBtn.disabled = true;
+      liveRpc('live_get', { p_code: code })
+        .then(function (game) {
+          if (!game) {
+            setLiveError('No existe ninguna partida con el código ' + code + '.');
+            return;
+          }
+          liveJoinCode.value = '';
+          startLive(game.code, game.state, game.version);
+        })
+        .catch(function (err) {
+          console.error('[Supabase] No se pudo unir a la partida:', err);
+          setLiveError(liveErrorText(err));
+        })
+        .then(function () { liveJoinBtn.disabled = false; });
+    };
+
+    if (hasLocalGame) {
+      openConfirm(
+        'Unirse a ' + code,
+        'La partida que tienes en este teléfono se sustituirá por la partida compartida (no se archiva). ¿Continuar?',
+        doJoin
+      );
+    } else {
+      doJoin();
+    }
+  }
+
+  function leaveLive() {
+    if (!live) return;
+    var code = live.code;
+    var pending = live.ops.length;
+    openConfirm(
+      'Salir de la partida',
+      (pending ? 'Hay ' + pending + (pending === 1 ? ' cambio sin enviar que se perderá' : ' cambios sin enviar que se perderán') + '. ' : '') +
+        'Dejarás de ver los cambios de los demás. La partida sigue disponible con el código ' + code + '.',
+      function () {
+        live = null;
+        liveMissing = false;
+        saveLive();
+        state = defaultState();
+        editingRoundId = null;
+        reorderMode = false;
+        saveState();
+        liveJoinCode.value = code;
+        setLiveError('');
+        renderAll({ resetRound: true });
+        renderLive();
+      }
+    );
+  }
+
+  function liveLink() {
+    return location.origin + location.pathname + '?g=' + live.code;
+  }
+
+  function shareLive() {
+    if (!live) return;
+    var url = liveLink();
+    var text = 'Únete a la partida de Scrabble con el código ' + live.code;
+    if (navigator.share) {
+      navigator.share({ title: 'Marcador Scrabble', text: text, url: url }).catch(function () {});
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text + ': ' + url).then(function () {
+        liveStatus.textContent = 'Enlace copiado: ' + url;
+      }, function () {
+        liveStatus.textContent = 'Comparte este enlace: ' + url;
+      });
+      return;
+    }
+    liveStatus.textContent = 'Comparte este enlace: ' + url;
+  }
+
+  // Terminar una partida compartida: se archiva en el servidor una sola vez,
+  // aunque dos teléfonos pulsen "Terminar" a la vez. Resuelve true si quedó
+  // archivada (por este teléfono o por otro).
+  function liveFinish(attempt) {
+    attempt = attempt || 0;
+    if (!live) return Promise.resolve(false);
+    if (state.finished) return Promise.resolve(true);
+    if (state.rounds.length === 0 || state.players.length === 0) return Promise.resolve(true);
+
+    return pushLive().then(function () {
+      if (!live) return false;
+      if (live.ops.length > 0 || liveMissing) {
+        setCloudStatus('Para terminar una partida compartida necesitas conexión. La partida NO se ha borrado; inténtalo de nuevo.', true);
+        return false;
+      }
+      if (state.finished) return true;
+
+      var code = live.code;
+      var payload = buildGamePayload();
+      var finishedState = applyOp(cloneState(state), { t: 'finish', at: payload.finished_at });
+
+      return liveRpc('live_finish', {
+        p_code: code,
+        p_expected_version: live.version,
+        p_state: finishedState,
+        p_finished_at: payload.finished_at,
+        p_rounds_played: payload.rounds_played,
+        p_players: payload.players,
+        p_rounds: payload.rounds
+      }).then(function (res) {
+        if (!live || live.code !== code) return false;
+        if (res.ok) {
+          acceptServer(finishedState, res.version);
+          setCloudStatus('', false);
+          return true;
+        }
+        acceptServer(res.state, res.version);
+        if (res.already) return true;
+        // Otro teléfono cambió algo justo ahora: se reintenta con lo último.
+        if (attempt < 3) return liveFinish(attempt + 1);
+        setCloudStatus('La partida está cambiando en otro teléfono. Vuelve a pulsar "Terminar partida".', true);
+        return false;
+      });
+    }).catch(function (err) {
+      handleLiveError(err);
+      setCloudStatus(isMissingFnError(err)
+        ? liveErrorText(err)
+        : 'No se pudo terminar la partida compartida. Revisa la conexión; la partida NO se ha borrado.', true);
+      return false;
+    });
+  }
+
+  liveCreateBtn.addEventListener('click', createLive);
+  liveJoinForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    joinLive(liveJoinCode.value);
+  });
+  liveJoinCode.addEventListener('input', function () {
+    var normalized = normalizeCode(liveJoinCode.value);
+    if (normalized !== liveJoinCode.value) liveJoinCode.value = normalized;
+  });
+  liveShareBtn.addEventListener('click', shareLive);
+  liveLeaveBtn.addEventListener('click', leaveLive);
+
+  // Enlace de invitación: index.html?g=CODIGO
+  function joinFromUrl() {
+    var match = /[?&]g=([^&#]+)/.exec(location.search);
+    if (!match) return;
+    try {
+      history.replaceState(null, '', location.pathname + location.hash);
+    } catch (e) { /* nada */ }
+    if (!supabaseClient) return;
+    joinLive(decodeURIComponent(match[1]));
+  }
+
   function renderAll(opts) {
     renderPlayers();
     renderRoundForm(opts && opts.resetRound);
     renderScoreboard();
-    renderHistory();
+    if (!(opts && opts.keepHistory)) renderHistory();
     renderFinal();
     updateTurnUI();
   }
 
   function boot(initialData) {
-    if (initialData && Array.isArray(initialData.players) && Array.isArray(initialData.rounds)) {
+    if (live) {
+      // La partida compartida manda: lo último confirmado + cambios pendientes.
+      recomputeLiveState();
+    } else if (initialData && Array.isArray(initialData.players) && Array.isArray(initialData.rounds)) {
       state = initialData;
     }
     renderAll();
+    renderLive();
     renderPastGames();
+    if (live) {
+      pushLive();
+      pollLive();
+    }
+    joinFromUrl();
     if (pendingGames.length > 0) {
       setCloudStatus(describePending(), true);
       flushPendingGames().then(renderPastGames);
