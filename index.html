@@ -874,8 +874,16 @@
   }
   .final-winner .trophy { font-size: 32px; line-height: 1; }
   .final-winner .label { font-size: 13px; color: var(--gold); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-  .final-winner .who { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
-  .final-winner .pts { margin-left: auto; font-size: 26px; font-weight: 800; }
+  /* Mismas fuentes que el marcador: nombre en Inter 700 (solo se cargan 400-700;
+     un 800 sale como negrita falsa) y puntos en Fraunces como los demás totales. */
+  .final-winner .who { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+  .final-winner .pts {
+    margin-left: auto;
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
   /* Partida compartida */
   .live-code {
     display: flex;
