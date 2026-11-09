@@ -902,6 +902,7 @@
   .badge.live-warn { color: var(--danger); border-color: var(--danger); }
   .live-off-actions { display: flex; flex-direction: column; gap: 10px; }
   .live-off-actions > .btn { align-self: flex-start; }
+  .btn.live-delete { color: var(--danger); margin-right: auto; }
 
   .app.finished .add-player-row,
   .app.finished .player-chip .remove,
@@ -997,6 +998,7 @@
       </div>
       <p class="hint" id="liveStatus" aria-live="polite"></p>
       <div class="round-actions">
+        <button class="btn btn-ghost live-delete" id="liveDeleteBtn" type="button">🗑 Borrar</button>
         <button class="btn btn-ghost" id="liveLeaveBtn" type="button">Salir</button>
         <button class="btn btn-primary" id="liveShareBtn" type="button">Invitar</button>
       </div>
@@ -2344,6 +2346,26 @@
     adminCode.focus();
   }
 
+  // Borrar la partida compartida en curso (mismo código que para las anteriores).
+  function openAdminLive(liveCode) {
+    if (!supabaseClient) return;
+    admin = { action: 'deleteLive', liveCode: liveCode };
+    adminReturnFocus = document.activeElement;
+    adminError.textContent = '';
+    adminCode.value = '';
+    adminTitle.textContent = 'Borrar partida en curso';
+    adminMessage.textContent = 'Se borrará la partida compartida ' + liveCode +
+      (state.players.length ? ' (' + state.players.map(function (p) { return p.name; }).join(', ') + ')' : '') +
+      ' para todos los teléfonos unidos. No se archiva en "Partidas anteriores" y no se puede deshacer.';
+    adminPlayers.innerHTML = '';
+    adminPlayers.hidden = true;
+    adminSubmit.textContent = 'Borrar';
+    adminSubmit.className = 'btn btn-danger';
+    adminSubmit.disabled = false;
+    adminBackdrop.hidden = false;
+    adminCode.focus();
+  }
+
   function closeAdmin() {
     adminBackdrop.hidden = true;
     admin = null;
@@ -2357,7 +2379,11 @@
     if (/codigo_invalido/.test(msg)) return 'Código incorrecto.';
     if (/partida_no_encontrada/.test(msg)) return 'Esa partida ya no existe. Actualiza la lista.';
     if (/nombre_vacio/.test(msg)) return 'Ningún nombre puede quedar vacío.';
-    if (err && err.code === 'PGRST202') return 'Falta configurar Supabase: ejecuta supabase/admin_games.sql en el SQL Editor.';
+    if (err && err.code === 'PGRST202') {
+      return admin && admin.action === 'deleteLive'
+        ? 'Falta configurar Supabase: vuelve a ejecutar supabase/live_games.sql en el SQL Editor.'
+        : 'Falta configurar Supabase: ejecuta supabase/admin_games.sql en el SQL Editor.';
+    }
     return 'No se pudo completar: ' + msg;
   }
 
@@ -2372,6 +2398,29 @@
     }
 
     var request;
+    if (admin.action === 'deleteLive') {
+      var liveCode = admin.liveCode;
+      adminSubmit.disabled = true;
+      adminError.textContent = '';
+      supabaseClient.rpc('admin_delete_live_game', { p_code: code, p_live_code: liveCode }).then(function (res) {
+        // Si ya no existía, el objetivo (que no esté) se ha cumplido igual.
+        if (res.error && res.error.code !== 'P0002') throw res.error;
+        closeAdmin();
+        if (live && live.code === liveCode) exitLive('');
+        setLiveError('');
+        setCloudStatus('Partida en curso ' + liveCode + ' borrada.', false);
+        setTimeout(function () {
+          if (cloudStatusHint.textContent === 'Partida en curso ' + liveCode + ' borrada.') setCloudStatus('');
+        }, 4000);
+      }).catch(function (err) {
+        console.error('[Supabase] admin_delete_live_game ->', err);
+        adminSubmit.disabled = false;
+        adminError.textContent = adminErrorText(err);
+        adminCode.select();
+        adminCode.focus();
+      });
+      return;
+    }
     if (admin.action === 'delete') {
       request = supabaseClient.rpc('admin_delete_game', { p_code: code, p_game_id: admin.game.id });
     } else {
@@ -2822,6 +2871,7 @@
   var liveJoinBtn = document.getElementById('liveJoinBtn');
   var liveShareBtn = document.getElementById('liveShareBtn');
   var liveLeaveBtn = document.getElementById('liveLeaveBtn');
+  var liveDeleteBtn = document.getElementById('liveDeleteBtn');
 
   function loadLive() {
     try {
@@ -2965,8 +3015,7 @@
   function handleLiveError(err) {
     console.warn('[Supabase] Partida compartida:', err);
     if (err && err.code === 'P0002') {
-      liveMissing = true;
-      renderLive();
+      liveGone();
       return;
     }
     if (isMissingFnError(err)) setLiveError(liveErrorText(err));
@@ -3024,13 +3073,13 @@
       .then(function (version) {
         if (!live || live.code !== code) return;
         if (version === null || version === undefined) {
-          liveMissing = true;
+          liveGone();
           return;
         }
         markOnline(true);
         if (version !== live.version) {
           return liveRpc('live_get', { p_code: code }).then(function (game) {
-            if (!game) { liveMissing = true; return; }
+            if (!game) { liveGone(); return; }
             acceptServer(game.state, game.version);
           });
         }
@@ -3130,19 +3179,35 @@
       (pending ? 'Hay ' + pending + (pending === 1 ? ' cambio sin enviar que se perderá' : ' cambios sin enviar que se perderán') + '. ' : '') +
         'Dejarás de ver los cambios de los demás. La partida sigue disponible con el código ' + code + '.',
       function () {
-        live = null;
-        liveMissing = false;
-        saveLive();
-        state = defaultState();
-        editingRoundId = null;
-        reorderMode = false;
-        saveState();
+        exitLive();
         liveJoinCode.value = code;
-        setLiveError('');
-        renderAll({ resetRound: true });
-        renderLive();
       }
     );
+  }
+
+  // Deja la partida compartida y vuelve a una partida local vacía.
+  function exitLive(message) {
+    live = null;
+    liveMissing = false;
+    saveLive();
+    state = defaultState();
+    editingRoundId = null;
+    reorderMode = false;
+    saveState();
+    setLiveError(message || '');
+    renderAll({ resetRound: true });
+    renderLive();
+  }
+
+  // La partida se borró (con el código de administración) o caducó: los demás
+  // teléfonos salen solos y se les avisa.
+  function liveGone() {
+    if (!live) return;
+    var code = live.code;
+    // Cualquier confirmación abierta se refería a esa partida.
+    if (!modalBackdrop.hidden) closeConfirm();
+    if (admin && admin.action === 'deleteLive') closeAdmin();
+    exitLive('La partida compartida ' + code + ' se ha borrado o ya no existe.');
   }
 
   function liveLink() {
@@ -3231,6 +3296,9 @@
   });
   liveShareBtn.addEventListener('click', shareLive);
   liveLeaveBtn.addEventListener('click', leaveLive);
+  liveDeleteBtn.addEventListener('click', function () {
+    if (live) openAdminLive(live.code);
+  });
 
   // Enlace de invitación: index.html?g=CODIGO
   function joinFromUrl() {
